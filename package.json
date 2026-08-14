@@ -1,0 +1,14 @@
+{
+  "name": "github-actions-winccoa",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Reusable GitHub Actions for WinCC OA projects.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "list:actions": "node ./scripts/list-actions.mjs",
+    "validate": "node ./scripts/validate-actions.mjs"
+  }
+}

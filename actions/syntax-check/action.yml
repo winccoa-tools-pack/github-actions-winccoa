@@ -1,0 +1,150 @@
+name: "WinCC OA Syntax Check"
+description: "Run WinCC OA syntax validation using @winccoa-tools-pack/npm-winccoa-syntax-check inside a WinCC OA Docker image"
+author: "winccoa-tools-pack"
+
+inputs:
+  path:
+    description: "Path to WinCC OA project root relative to the repository root"
+    required: false
+    default: "."
+
+  fail-on-error:
+    description: "Fail workflow on syntax errors"
+    required: false
+    default: "true"
+
+  docker-image:
+    description: "GHCR WinCC OA image to run the check in"
+    required: false
+    default: "ghcr.io/winccoa-tools-pack/winccoa:latest"
+
+  winccoa-version:
+    description: "WinCC OA version installed in the image, for example 3.21"
+    required: true
+
+  config:
+    description: "Path to the project config file relative to the repository root. If empty, defaults to <path>/config/config"
+    required: false
+    default: ""
+
+  mode:
+    description: "Check mode: all, scripts, panels"
+    required: false
+    default: "all"
+
+  integrity:
+    description: "If true, performs integrity check"
+    required: false
+    default: "false"
+
+  timeout-ms:
+    description: "Timeout in milliseconds"
+    required: false
+    default: "60000"
+
+outputs:
+  error-count:
+    description: "Number of detected syntax errors"
+    value: ${{ steps.run.outputs.error-count }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run syntax check in container
+      id: run
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        DOCKER_IMAGE: ${{ inputs.docker-image }}
+        OA_VERSION: ${{ inputs.winccoa-version }}
+        MODE: ${{ inputs.mode }}
+        INTEGRITY: ${{ inputs.integrity }}
+        TIMEOUT_MS: ${{ inputs.timeout-ms }}
+      run: |
+        set -euo pipefail
+
+        PROJECT_PATH="${INPUT_PATH#./}"
+        if [ -z "$PROJECT_PATH" ]; then
+          PROJECT_PATH="."
+        fi
+
+        if [ -n "$INPUT_CONFIG" ]; then
+          CONFIG_PATH="${INPUT_CONFIG#./}"
+        elif [ "$PROJECT_PATH" = "." ]; then
+          CONFIG_PATH="config/config"
+        else
+          CONFIG_PATH="$PROJECT_PATH/config/config"
+        fi
+
+        if [ ! -f "$GITHUB_WORKSPACE/$CONFIG_PATH" ]; then
+          echo "::error::Config file not found: $CONFIG_PATH"
+          exit 2
+        fi
+
+        set +e
+        CONTAINER_SCRIPT=$(cat <<'BASH'
+            set -euo pipefail
+
+            if ! command -v node >/dev/null 2>&1; then
+              echo "::error::node not found in image"
+              exit 127
+            fi
+
+            if ! command -v npm >/dev/null 2>&1; then
+              echo "::error::npm not found in image"
+              exit 127
+            fi
+
+            OA_PATH="/opt/WinCC_OA/${OA_VERSION}"
+            PROJ_PATH="/workspace/${PROJECT_PATH}"
+            CONFIG_SRC="/workspace/${CONFIG_PATH}"
+            CONFIG_TMP="/tmp/winccoa-config"
+            CREATE_DB_BIN="$OA_PATH/bin/WCCOAtoolCreateDbSQLite"
+
+            cp "$CONFIG_SRC" "$CONFIG_TMP"
+            sed -i "s|<WinCC_OA_PATH>|$OA_PATH|g; s|<WinCC_OA_VERSION>|$OA_VERSION|g; s|<PROJECT_PATH>|$PROJ_PATH|g" "$CONFIG_TMP" || true
+
+            if [ -x "$CREATE_DB_BIN" ]; then
+              "$CREATE_DB_BIN" -config "$CONFIG_TMP" -empty -yes
+            fi
+
+            npm install -g @winccoa-tools-pack/npm-winccoa-syntax-check@latest
+
+            ARGS=("-v" "$OA_VERSION" "-c" "$CONFIG_TMP" "-m" "$MODE" "-t" "$TIMEOUT_MS")
+            if [ "$INTEGRITY" = "true" ]; then
+              ARGS+=("-i")
+            fi
+
+            winccoa-syntax-check "${ARGS[@]}"
+        BASH
+        )
+        OUTPUT=$(docker run --rm \
+          --shm-size=2g \
+          -v "$GITHUB_WORKSPACE":"/workspace":rw \
+          -w "/workspace" \
+          -e OA_VERSION="$OA_VERSION" \
+          -e PROJECT_PATH="$PROJECT_PATH" \
+          -e CONFIG_PATH="$CONFIG_PATH" \
+          -e MODE="$MODE" \
+          -e INTEGRITY="$INTEGRITY" \
+          -e TIMEOUT_MS="$TIMEOUT_MS" \
+          "$DOCKER_IMAGE" \
+          bash -lc "$CONTAINER_SCRIPT" 2>&1)
+        EXIT_CODE=$?
+        set -e
+
+        ERROR_COUNT=$(echo "$OUTPUT" | grep -E ".+:[0-9]+:\s+.+" -c || true)
+        echo "$OUTPUT"
+        echo "error-count=$ERROR_COUNT" >> "$GITHUB_OUTPUT"
+
+        if [ "$EXIT_CODE" -ne 0 ]; then
+          MESSAGE="Syntax check failed (exit $EXIT_CODE). Parsed errors: $ERROR_COUNT"
+          if [ "$FAIL_ON_ERROR" = "true" ]; then
+            echo "::error::$MESSAGE"
+            exit "$EXIT_CODE"
+          fi
+
+          echo "::warning::$MESSAGE"
+        fi

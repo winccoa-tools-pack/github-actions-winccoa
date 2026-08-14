@@ -1,0 +1,93 @@
+# github-actions-winccoa
+
+Reusable GitHub Actions for WinCC OA projects.
+
+This repository is structured as a multi-action repository. Each action lives in its own subdirectory under `actions/` and is published from the same repository tag.
+
+## Why one repository
+
+For an expected set of 20-25 actions, one repository is the better default:
+
+- lower maintenance overhead for branching, rulesets, CI, security, and release automation
+- one place for shared contribution guidelines and examples
+- easier discovery for consumers looking for WinCC OA automation
+- consistent version tags across related actions
+
+Use separate repositories only when an action needs one of these:
+
+- independent ownership or permissions
+- a very different runtime or toolchain
+- a separate release cadence with breaking changes unrelated to the rest
+- a security boundary that should not share CI or release flows
+
+## Repository layout
+
+```text
+github-actions-winccoa/
+  .github/
+    workflows/
+      ci.yml
+  actions/
+    project-metadata/
+      action.yml
+      README.md
+    syntax-check/
+      action.yml
+      README.md
+  docs/
+    repository-strategy.md
+  scripts/
+    list-actions.mjs
+    validate-actions.mjs
+  package.json
+```
+
+## Available actions
+
+## Runtime and compatibility
+
+- Actions in this repository are intended for Linux environments.
+- The current validation baseline is Debian-based Docker images with WinCC OA 3.21.
+- Compatibility is expected for WinCC OA 3.21 patch versions and WinCC OA 3.22.
+- Legacy WinCC OA 3.20 may work, but should be treated as best-effort and validated per project.
+
+### syntax-check
+
+Runs WinCC OA syntax validation inside a Docker image.
+
+```yaml
+- uses: winccoa-tools-pack/github-actions-winccoa/actions/syntax-check@v1
+  with:
+    path: .
+    winccoa-version: '3.21'
+    docker-image: ghcr.io/winccoa-tools-pack/winccoa:latest
+```
+
+### project-metadata
+
+Normalizes project and config paths for downstream workflow steps.
+
+```yaml
+- id: metadata
+  uses: winccoa-tools-pack/github-actions-winccoa/actions/project-metadata@v1
+  with:
+    path: demo-oa-repo
+
+- run: echo "Config is ${{ steps.metadata.outputs.config-path }}"
+```
+
+## Release model
+
+- tag the repository with full versions such as `v1.2.0`
+- move the major tag such as `v1` after compatible releases
+- keep breaking changes grouped into a new major tag
+
+That model is simple and works well until one action needs its own release lifecycle. If that happens, split only that action into its own repository.
+
+## Development
+
+```powershell
+npm install
+npm run validate
+npm run list:actions
+```

@@ -1,0 +1,50 @@
+name: "WinCC OA Project Metadata"
+description: "Normalize WinCC OA project and config paths for downstream workflow steps"
+author: "winccoa-tools-pack"
+
+inputs:
+  path:
+    description: "Path to the WinCC OA project root relative to the repository root"
+    required: false
+    default: "."
+
+  config:
+    description: "Path to the config file relative to the repository root. If empty, defaults to <path>/config/config"
+    required: false
+    default: ""
+
+outputs:
+  project-path:
+    description: "Normalized project path"
+    value: ${{ steps.resolve.outputs.project-path }}
+
+  config-path:
+    description: "Resolved config path"
+    value: ${{ steps.resolve.outputs.config-path }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: resolve
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_CONFIG: ${{ inputs.config }}
+      run: |
+        set -euo pipefail
+
+        PROJECT_PATH="${INPUT_PATH#./}"
+        if [ -z "$PROJECT_PATH" ]; then
+          PROJECT_PATH="."
+        fi
+
+        if [ -n "$INPUT_CONFIG" ]; then
+          CONFIG_PATH="${INPUT_CONFIG#./}"
+        elif [ "$PROJECT_PATH" = "." ]; then
+          CONFIG_PATH="config/config"
+        else
+          CONFIG_PATH="$PROJECT_PATH/config/config"
+        fi
+
+        echo "project-path=$PROJECT_PATH" >> "$GITHUB_OUTPUT"
+        echo "config-path=$CONFIG_PATH" >> "$GITHUB_OUTPUT"
