@@ -151,15 +151,15 @@ runs:
               cp "$CONFIG_SRC" "$CONFIG_TMP"
               sed -i "s|<WinCC_OA_PATH>|$OA_PATH|g; s|<WinCC_OA_VERSION>|$OA_VERSION|g; s|<PROJECT_PATH>|$PROJ_PATH|g" "$CONFIG_TMP" || true
             else
-              cat > "$CONFIG_TMP" <<EOF
-[general]
-pvss_path = "$OA_PATH"
-proj_path = "$PROJ_PATH"
-proj_version = "${OA_VERSION}"
-langs = "de_AT.utf8"
-langs = "en_US.utf8"
-pmonPort = 5999
-EOF
+              printf '%s\n' \
+                '[general]' \
+                "pvss_path = \"$OA_PATH\"" \
+                "proj_path = \"$PROJ_PATH\"" \
+                "proj_version = \"${OA_VERSION}\"" \
+                'langs = "de_AT.utf8"' \
+                'langs = "en_US.utf8"' \
+                'pmonPort = 5999' \
+                > "$CONFIG_TMP"
             fi
 
             if [ -x "$PMON_BIN" ]; then
