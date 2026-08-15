@@ -79,8 +79,7 @@ runs:
         fi
 
         if [ ! -f "$GITHUB_WORKSPACE/$CONFIG_PATH" ]; then
-          echo "::error::Config file not found: $CONFIG_PATH"
-          exit 2
+          echo "::notice::Config file not found at '$CONFIG_PATH'. A temporary config will be generated."
         fi
 
         set +e
@@ -102,9 +101,28 @@ runs:
             CONFIG_SRC="/workspace/${CONFIG_PATH}"
             CONFIG_TMP="/tmp/winccoa-config"
             CREATE_DB_BIN="$OA_PATH/bin/WCCOAtoolCreateDbSQLite"
+            PMON_BIN="$OA_PATH/bin/WCCILpmon"
 
-            cp "$CONFIG_SRC" "$CONFIG_TMP"
-            sed -i "s|<WinCC_OA_PATH>|$OA_PATH|g; s|<WinCC_OA_VERSION>|$OA_VERSION|g; s|<PROJECT_PATH>|$PROJ_PATH|g" "$CONFIG_TMP" || true
+            mkdir -p "$PROJ_PATH/config"
+
+            if [ -f "$CONFIG_SRC" ]; then
+              cp "$CONFIG_SRC" "$CONFIG_TMP"
+              sed -i "s|<WinCC_OA_PATH>|$OA_PATH|g; s|<WinCC_OA_VERSION>|$OA_VERSION|g; s|<PROJECT_PATH>|$PROJ_PATH|g" "$CONFIG_TMP" || true
+            else
+              cat > "$CONFIG_TMP" <<EOF
+              [general]
+              pvss_path = "$OA_PATH"
+              proj_path = "$PROJ_PATH"
+              proj_version = "${OA_VERSION}"
+              langs = "de_AT.utf8"
+              langs = "en_US.utf8"
+              pmonPort = 5999
+              EOF
+            fi
+
+            if [ -x "$PMON_BIN" ]; then
+              "$PMON_BIN" -config "$CONFIG_TMP" -n -autofreg -status -log +stderr || true
+            fi
 
             if [ -x "$CREATE_DB_BIN" ]; then
               "$CREATE_DB_BIN" -config "$CONFIG_TMP" -empty -yes

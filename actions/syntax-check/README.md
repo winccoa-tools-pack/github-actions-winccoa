@@ -29,6 +29,15 @@ Runs WinCC OA syntax validation inside a Docker image that contains WinCC OA, No
 | --- | --- |
 | `error-count` | Best-effort parsed number of reported errors |
 
+## Config handling
+
+- If `config` is set and the file exists, the action uses that file.
+- If `config` is empty, the action tries `<path>/config/config`.
+- If no config file is found, the action generates a temporary minimal config,
+  similar to the docs build flow, and continues.
+- The action also starts `WCCILpmon` (best effort) and initializes SQLite DB
+  with `WCCOAtoolCreateDbSQLite` when available.
+
 ## Example
 
 ```yaml
