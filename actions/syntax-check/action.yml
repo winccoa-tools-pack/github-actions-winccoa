@@ -141,7 +141,7 @@ runs:
             OA_PATH="/opt/WinCC_OA/${OA_VERSION}"
             PROJ_PATH="/workspace/${PROJECT_PATH}"
             CONFIG_SRC="/workspace/${CONFIG_PATH}"
-            CONFIG_TMP="/tmp/winccoa-config"
+            CONFIG_TMP="$PROJ_PATH/config/config"
             CREATE_DB_BIN="$OA_PATH/bin/WCCOAtoolCreateDbSQLite"
             PMON_BIN="$OA_PATH/bin/WCCILpmon"
 
