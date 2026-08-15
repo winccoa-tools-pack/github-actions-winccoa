@@ -36,8 +36,10 @@ Runs WinCC OA syntax validation inside a Docker image that contains WinCC OA, No
 - If `config` is empty, the action tries `<path>/config/config`.
 - If no config file is found, the action generates a temporary minimal config,
   writes it to `<path>/config/config` like the docs build flow, and continues.
-- The action also starts `WCCILpmon` (best effort) and initializes SQLite DB
-  with `WCCOAtoolCreateDbSQLite` when available.
+- The action starts `WCCILpmon` in best-effort mode for project registration.
+- The action intentionally does not initialize any database because syntax
+  validation does not require DB startup and RAIMA-based projects can fail on
+  SQLite create-db tools.
 - If `node`/`npm` are missing in the image, the action downloads a standalone
   Node.js Linux tarball from `nodejs.org` and installs it under `/usr/local`.
 - The action prints grouped previews of captured stdout and stderr to simplify

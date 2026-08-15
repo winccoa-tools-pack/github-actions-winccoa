@@ -142,7 +142,6 @@ runs:
             PROJ_PATH="/workspace/${PROJECT_PATH}"
             CONFIG_SRC="/workspace/${CONFIG_PATH}"
             CONFIG_TMP="$PROJ_PATH/config/config"
-            CREATE_DB_BIN="$OA_PATH/bin/WCCOAtoolCreateDbSQLite"
             PMON_BIN="$OA_PATH/bin/WCCILpmon"
 
             mkdir -p "$PROJ_PATH/config"
@@ -164,10 +163,6 @@ runs:
 
             if [ -x "$PMON_BIN" ]; then
               "$PMON_BIN" -config "$CONFIG_TMP" -n -autofreg -status -log +stderr || true
-            fi
-
-            if [ -x "$CREATE_DB_BIN" ]; then
-              "$CREATE_DB_BIN" -config "$CONFIG_TMP" -empty -yes
             fi
 
             npm install -g @winccoa-tools-pack/npm-winccoa-syntax-check@latest
