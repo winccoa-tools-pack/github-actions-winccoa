@@ -86,13 +86,18 @@ runs:
         CONTAINER_SCRIPT=$(cat <<'BASH'
             set -euo pipefail
 
-            if ! command -v node >/dev/null 2>&1; then
-              echo "::error::node not found in image"
-              exit 127
+            if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+              if command -v apt-get >/dev/null 2>&1; then
+                apt-get update -qq
+                apt-get --assume-yes install -f nodejs npm
+              else
+                echo "::error::node/npm not found in image and apt-get is unavailable"
+                exit 127
+              fi
             fi
 
-            if ! command -v npm >/dev/null 2>&1; then
-              echo "::error::npm not found in image"
+            if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+              echo "::error::node/npm installation failed in image"
               exit 127
             fi
 

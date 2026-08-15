@@ -37,6 +37,8 @@ Runs WinCC OA syntax validation inside a Docker image that contains WinCC OA, No
   similar to the docs build flow, and continues.
 - The action also starts `WCCILpmon` (best effort) and initializes SQLite DB
   with `WCCOAtoolCreateDbSQLite` when available.
+- If `node`/`npm` are missing in the image, the action attempts to install
+  them using `apt-get`.
 
 ## Example
 
