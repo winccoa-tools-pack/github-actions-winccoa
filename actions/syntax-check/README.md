@@ -22,6 +22,7 @@ Runs WinCC OA syntax validation inside a Docker image that contains WinCC OA, No
 | `mode` | No | `all` | `all`, `scripts`, or `panels` |
 | `integrity` | No | `false` | Enables integrity checks |
 | `timeout-ms` | No | `60000` | Validation timeout in milliseconds |
+| `node-version` | No | `20.17.0` | Node.js version used when image has no node/npm |
 
 ## Outputs
 
@@ -37,8 +38,8 @@ Runs WinCC OA syntax validation inside a Docker image that contains WinCC OA, No
   similar to the docs build flow, and continues.
 - The action also starts `WCCILpmon` (best effort) and initializes SQLite DB
   with `WCCOAtoolCreateDbSQLite` when available.
-- If `node`/`npm` are missing in the image, the action attempts to install
-  them using `apt-get`.
+- If `node`/`npm` are missing in the image, the action downloads a standalone
+  Node.js Linux tarball from `nodejs.org` and installs it under `/usr/local`.
 
 ## Example
 

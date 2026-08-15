@@ -42,6 +42,11 @@ inputs:
     required: false
     default: "60000"
 
+  node-version:
+    description: "Node.js version used when node/npm are missing in the image"
+    required: false
+    default: "20.17.0"
+
 outputs:
   error-count:
     description: "Number of detected syntax errors"
@@ -62,6 +67,7 @@ runs:
         MODE: ${{ inputs.mode }}
         INTEGRITY: ${{ inputs.integrity }}
         TIMEOUT_MS: ${{ inputs.timeout-ms }}
+        NODE_VERSION: ${{ inputs.node-version }}
       run: |
         set -euo pipefail
 
@@ -86,14 +92,45 @@ runs:
         CONTAINER_SCRIPT=$(cat <<'BASH'
             set -euo pipefail
 
-            if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
-              if command -v apt-get >/dev/null 2>&1; then
-                apt-get update -qq
-                apt-get --assume-yes install -f nodejs npm
+            install_node() {
+              local arch
+              case "$(uname -m)" in
+                x86_64) arch="x64" ;;
+                aarch64|arm64) arch="arm64" ;;
+                *)
+                  echo "::error::Unsupported architecture for node install: $(uname -m)"
+                  return 1
+                  ;;
+              esac
+
+              local version="${NODE_VERSION}"
+              case "$version" in
+                v*) ;;
+                *) version="v${version}" ;;
+              esac
+
+              local tarball="node-${version}-linux-${arch}.tar.xz"
+              local url="https://nodejs.org/dist/${version}/${tarball}"
+              local tmp_dir
+              tmp_dir="$(mktemp -d)"
+
+              if command -v curl >/dev/null 2>&1; then
+                curl -fsSL "$url" -o "$tmp_dir/$tarball"
+              elif command -v wget >/dev/null 2>&1; then
+                wget -qO "$tmp_dir/$tarball" "$url"
               else
-                echo "::error::node/npm not found in image and apt-get is unavailable"
-                exit 127
+                echo "::error::Neither curl nor wget available to download Node.js"
+                rm -rf "$tmp_dir"
+                return 1
               fi
+
+              tar -xJf "$tmp_dir/$tarball" -C "$tmp_dir"
+              cp -R "$tmp_dir/node-${version}-linux-${arch}/." /usr/local/
+              rm -rf "$tmp_dir"
+            }
+
+            if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+              install_node
             fi
 
             if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
