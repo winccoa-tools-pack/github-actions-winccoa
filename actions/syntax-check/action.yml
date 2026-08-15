@@ -180,7 +180,11 @@ runs:
             winccoa-syntax-check "${ARGS[@]}"
         BASH
         )
-        OUTPUT=$(docker run --rm \
+
+        STDOUT_FILE=$(mktemp)
+        STDERR_FILE=$(mktemp)
+
+        docker run --rm \
           --user root \
           --shm-size=2g \
           -v "$GITHUB_WORKSPACE":"/workspace":rw \
@@ -191,14 +195,36 @@ runs:
           -e MODE="$MODE" \
           -e INTEGRITY="$INTEGRITY" \
           -e TIMEOUT_MS="$TIMEOUT_MS" \
+          -e NODE_VERSION="$NODE_VERSION" \
           "$DOCKER_IMAGE" \
-          bash -lc "$CONTAINER_SCRIPT" 2>&1)
+          bash -lc "$CONTAINER_SCRIPT" \
+          >"$STDOUT_FILE" 2>"$STDERR_FILE"
         EXIT_CODE=$?
         set -e
 
-        ERROR_COUNT=$(echo "$OUTPUT" | grep -E ".+:[0-9]+:\s+.+" -c || true)
-        echo "$OUTPUT"
+        STDOUT_TOTAL_LINES=$(wc -l < "$STDOUT_FILE" | tr -d '[:space:]')
+        STDERR_TOTAL_LINES=$(wc -l < "$STDERR_FILE" | tr -d '[:space:]')
+        PREVIEW_LINES=120
+
+        echo "::group::Syntax check stdout preview (${STDOUT_TOTAL_LINES} lines total, showing up to ${PREVIEW_LINES})"
+        sed -n "1,${PREVIEW_LINES}p" "$STDOUT_FILE" || true
+        if [ "$STDOUT_TOTAL_LINES" -gt "$PREVIEW_LINES" ]; then
+          echo "... truncated ..."
+        fi
+        echo "::endgroup::"
+
+        echo "::group::Syntax check stderr preview (${STDERR_TOTAL_LINES} lines total, showing up to ${PREVIEW_LINES})"
+        sed -n "1,${PREVIEW_LINES}p" "$STDERR_FILE" || true
+        if [ "$STDERR_TOTAL_LINES" -gt "$PREVIEW_LINES" ]; then
+          echo "... truncated ..."
+        fi
+        echo "::endgroup::"
+
+        OUTPUT=$(cat "$STDOUT_FILE" "$STDERR_FILE")
+        ERROR_COUNT=$(printf '%s\n' "$OUTPUT" | grep -E ".+:[0-9]+:\s+.+" -c || true)
         echo "error-count=$ERROR_COUNT" >> "$GITHUB_OUTPUT"
+
+        rm -f "$STDOUT_FILE" "$STDERR_FILE"
 
         if [ "$EXIT_CODE" -ne 0 ]; then
           MESSAGE="Syntax check failed (exit $EXIT_CODE). Parsed errors: $ERROR_COUNT"

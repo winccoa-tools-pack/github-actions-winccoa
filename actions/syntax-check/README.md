@@ -40,6 +40,8 @@ Runs WinCC OA syntax validation inside a Docker image that contains WinCC OA, No
   with `WCCOAtoolCreateDbSQLite` when available.
 - If `node`/`npm` are missing in the image, the action downloads a standalone
   Node.js Linux tarball from `nodejs.org` and installs it under `/usr/local`.
+- The action prints grouped previews of captured stdout and stderr to simplify
+  CI debugging.
 
 ## Example
 
