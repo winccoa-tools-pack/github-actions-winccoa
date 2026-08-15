@@ -44,6 +44,21 @@ github-actions-winccoa/
 
 ## Available actions
 
+### winccoa-build-docs
+
+Builds WinCC OA help documentation in a container and extracts Doxygen
+warnings for PR reporting or quality gates.
+
+```yaml
+- id: docs
+  uses: winccoa-tools-pack/github-actions-winccoa/actions/winccoa-build-docs@main
+  with:
+    path: src/Squirt
+    winccoa-version: '3.21'
+    docker-image: ghcr.io/winccoa-tools-pack/winccoa:v3.21.3-debian12-all
+    max-warning-count: '0'
+```
+
 ## Runtime and compatibility
 
 - Actions in this repository are intended for Linux environments.

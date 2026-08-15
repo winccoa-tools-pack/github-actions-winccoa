@@ -1,0 +1,250 @@
+name: "WinCC OA Build Docs"
+description: "Build WinCC OA help documentation in a containerized project context."
+
+inputs:
+  path:
+    description: "Path to WinCC OA project root (relative to repository root)."
+    required: false
+    default: "."
+  winccoa-version:
+    description: "WinCC OA install directory version (major.minor), e.g. 3.21."
+    required: true
+  docker-image:
+    description: "Container image used for docs generation."
+    required: true
+  company-name:
+    description: "Company/organization label used by buildHelp.ctl; default resolves to org name, then repo name."
+    required: false
+    default: ""
+  warning-output-file:
+    description: "Path (relative to workspace) where extracted warnings are written."
+    required: false
+    default: ".artifacts/doxygen-warnings.txt"
+  annotate-warnings:
+    description: "Emit parsed warnings as GitHub annotations."
+    required: false
+    default: "true"
+  max-warning-count:
+    description: "Maximum allowed warning count; -1 disables threshold enforcement."
+    required: false
+    default: "-1"
+  max-annotations:
+    description: "Maximum number of warning annotations to emit."
+    required: false
+    default: "200"
+
+outputs:
+  warning-count:
+    description: "Count of extracted warning lines from the docs build output."
+    value: ${{ steps.build.outputs.warning-count }}
+  warning-file:
+    description: "Workspace-relative path to extracted warning lines."
+    value: ${{ steps.build.outputs.warning-file }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build help in container
+      id: build
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        PROJECT_PATH: ${{ inputs.path }}
+        OA_VERSION: ${{ inputs.winccoa-version }}
+        DOCKER_IMAGE: ${{ inputs.docker-image }}
+        COMPANY_NAME_INPUT: ${{ inputs.company-name }}
+        WARNING_OUTPUT_FILE: ${{ inputs.warning-output-file }}
+        ANNOTATE_WARNINGS: ${{ inputs.annotate-warnings }}
+        MAX_WARNING_COUNT: ${{ inputs.max-warning-count }}
+        MAX_ANNOTATIONS: ${{ inputs.max-annotations }}
+      run: |
+        set -euo pipefail
+
+        COMPANY_NAME="${COMPANY_NAME_INPUT}"
+        if [ -z "$COMPANY_NAME" ]; then
+          REPO_FULL="${GITHUB_REPOSITORY:-}"
+          ORG_NAME="${REPO_FULL%%/*}"
+          REPO_NAME="${REPO_FULL##*/}"
+
+          if [ -n "$ORG_NAME" ] && [ "$ORG_NAME" != "$REPO_FULL" ]; then
+            COMPANY_NAME="$ORG_NAME"
+          elif [ -n "$REPO_NAME" ]; then
+            COMPANY_NAME="$REPO_NAME"
+          else
+            COMPANY_NAME="WinCC OA community"
+          fi
+        fi
+
+        WORKDIR=/workspace
+        PROJECT_PATH_NORM="${PROJECT_PATH#./}"
+        if [ -z "$PROJECT_PATH_NORM" ]; then
+          PROJECT_PATH_NORM="."
+        fi
+
+        CONTAINER_SCRIPT=$(cat <<'BASH'
+        set -euo pipefail
+
+        OA_PATH="/opt/WinCC_OA/${OA_VERSION}"
+        PROJ_PATH="/workspace/${PROJECT_PATH_NORM}"
+        CONFIG_TMP="$PROJ_PATH/config/config"
+        DOC_CONFIG="$PROJ_PATH/data/projectDocu/advanced_doxygenConfig.txt"
+        HELPER_CTL="/action/buildHelp.ctl"
+
+        mkdir -p "$PROJ_PATH/log"
+        mkdir -p "$PROJ_PATH/help"
+        mkdir -p "$PROJ_PATH/config"
+
+        cat > "$CONFIG_TMP" <<EOF
+        [general]
+        pvss_path = "$OA_PATH"
+        proj_path = "$PROJ_PATH"
+        proj_version = "${OA_VERSION}"
+        langs = "de_AT.utf8"
+        langs = "en_US.utf8"
+        pmonPort = 5999
+        EOF
+
+        if command -v apt-get >/dev/null 2>&1; then
+          apt-get update -qq
+          apt-get --assume-yes install -f doxygen graphviz
+        else
+          echo "::warning::apt-get not available in image; assuming doxygen and graphviz are preinstalled"
+        fi
+
+        if [ -f "$DOC_CONFIG" ]; then
+          sed -i "s|%WINCCOA_VERSION%|${OA_VERSION}|g" "$DOC_CONFIG"
+        fi
+
+        if [ ! -f "$HELPER_CTL" ]; then
+          echo "::error::Missing helper script: $HELPER_CTL"
+          exit 2
+        fi
+
+        "$OA_PATH/bin/WCCILpmon" \
+          -config "$CONFIG_TMP" \
+          -n -autofreg -status -log +stderr || true
+
+        "$OA_PATH/bin/WCCOActrl" \
+          -config "$CONFIG_TMP" \
+          -n "$HELPER_CTL" "${COMPANY_NAME}" \
+          -log +stderr \
+          -lang en_US.utf8
+        BASH
+        )
+
+        mkdir -p "$(dirname "$WARNING_OUTPUT_FILE")"
+
+        set +e
+        OUTPUT=$(docker run --rm \
+          --user root \
+          --shm-size=2g \
+          -v "$GITHUB_WORKSPACE":"$WORKDIR":rw \
+          -v "$ACTION_PATH":"/action":ro \
+          -w "$WORKDIR" \
+          -e OA_VERSION="$OA_VERSION" \
+          -e COMPANY_NAME="$COMPANY_NAME" \
+          -e PROJECT_PATH_NORM="$PROJECT_PATH_NORM" \
+          "$DOCKER_IMAGE" \
+          bash -lc "$CONTAINER_SCRIPT" 2>&1)
+        EXIT_CODE=$?
+        set -e
+
+        echo "$OUTPUT"
+
+        LOG_DIR="$PROJECT_PATH_NORM/log"
+        DOXYGEN_STDERR="$LOG_DIR/doxygen_stdErr.txt"
+        DOXYGEN_STDOUT="$LOG_DIR/doxygen_stdOut.txt"
+
+        if [ -f "$DOXYGEN_STDERR" ]; then
+          echo "::notice::Found doxygen stderr log at $DOXYGEN_STDERR"
+
+          STDERR_TOTAL_LINES=$(wc -l < "$DOXYGEN_STDERR" | tr -d '[:space:]')
+          STDERR_PREVIEW_LINES=120
+          echo "::group::Doxygen stderr preview (${STDERR_TOTAL_LINES} lines total, showing up to ${STDERR_PREVIEW_LINES})"
+          sed -n "1,${STDERR_PREVIEW_LINES}p" "$DOXYGEN_STDERR" || true
+          if [ "$STDERR_TOTAL_LINES" -gt "$STDERR_PREVIEW_LINES" ]; then
+            echo "... truncated ..."
+          fi
+          echo "::endgroup::"
+
+          grep -E "[Ww]arning:|\bWARNING\b|\bSEVERE\b|\bFATAL\b" "$DOXYGEN_STDERR" > "$WARNING_OUTPUT_FILE" || true
+
+          if [ ! -s "$WARNING_OUTPUT_FILE" ] && [ -f "$DOXYGEN_STDOUT" ]; then
+            echo "::notice::No warnings found in stderr; falling back to doxygen stdout log at $DOXYGEN_STDOUT"
+            grep -E "[Ww]arning:|\bWARNING\b|\bSEVERE\b|\bFATAL\b" "$DOXYGEN_STDOUT" > "$WARNING_OUTPUT_FILE" || true
+          fi
+        else
+          echo "$OUTPUT" | grep -E "[Ww]arning:|\bWARNING\b|\bSEVERE\b|\bFATAL\b" > "$WARNING_OUTPUT_FILE" || true
+        fi
+
+        if [ -f "$DOXYGEN_STDOUT" ]; then
+          echo "::notice::Found doxygen stdout log at $DOXYGEN_STDOUT"
+        fi
+
+        WARNING_COUNT=$(wc -l < "$WARNING_OUTPUT_FILE" | tr -d '[:space:]')
+        echo "warning-count=$WARNING_COUNT" >> "$GITHUB_OUTPUT"
+        echo "warning-file=$WARNING_OUTPUT_FILE" >> "$GITHUB_OUTPUT"
+
+        if ! [[ "$MAX_WARNING_COUNT" =~ ^-?[0-9]+$ ]]; then
+          echo "::error::Invalid max-warning-count value '$MAX_WARNING_COUNT'. Use an integer, e.g. -1, 0, 10."
+          exit 2
+        fi
+
+        if [ "${ANNOTATE_WARNINGS}" = "true" ] && [ -f "$WARNING_OUTPUT_FILE" ]; then
+          annotation_count=0
+          truncated=0
+
+          while IFS= read -r warning_line; do
+            [ -z "$warning_line" ] && continue
+
+            if [ "$annotation_count" -ge "$MAX_ANNOTATIONS" ]; then
+              truncated=1
+              break
+            fi
+
+            if [[ "$warning_line" =~ ^([^:]+):([0-9]+):([0-9]+):[[:space:]]*(.*)$ ]]; then
+              file_path="${BASH_REMATCH[1]#/workspace/}"
+              line_no="${BASH_REMATCH[2]}"
+              col_no="${BASH_REMATCH[3]}"
+              message="${BASH_REMATCH[4]}"
+            elif [[ "$warning_line" =~ ^([^:]+):([0-9]+):[[:space:]]*(.*)$ ]]; then
+              file_path="${BASH_REMATCH[1]#/workspace/}"
+              line_no="${BASH_REMATCH[2]}"
+              col_no=""
+              message="${BASH_REMATCH[3]}"
+            else
+              file_path=""
+              line_no=""
+              col_no=""
+              message="$warning_line"
+            fi
+
+            message="${message//'%'/'%25'}"
+            message="${message//$'\r'/'%0D'}"
+            message="${message//$'\n'/'%0A'}"
+
+            if [ -n "$file_path" ] && [ -n "$line_no" ] && [ -n "$col_no" ]; then
+              echo "::warning file=$file_path,line=$line_no,col=$col_no::$message"
+            elif [ -n "$file_path" ] && [ -n "$line_no" ]; then
+              echo "::warning file=$file_path,line=$line_no::$message"
+            else
+              echo "::warning::$message"
+            fi
+
+            annotation_count=$((annotation_count + 1))
+          done < "$WARNING_OUTPUT_FILE"
+
+          if [ "$truncated" -eq 1 ]; then
+            echo "::notice::Warning annotations truncated at ${MAX_ANNOTATIONS} items"
+          fi
+        fi
+
+        if [ "$MAX_WARNING_COUNT" -ge 0 ] && [ "$WARNING_COUNT" -gt "$MAX_WARNING_COUNT" ]; then
+          echo "::error::Doxygen warning count $WARNING_COUNT exceeds configured max-warning-count $MAX_WARNING_COUNT"
+          exit 3
+        fi
+
+        if [ "$EXIT_CODE" -ne 0 ]; then
+          echo "::error::Docs build failed with exit code $EXIT_CODE"
+          exit "$EXIT_CODE"
+        fi
