@@ -144,6 +144,7 @@ runs:
         BASH
         )
         OUTPUT=$(docker run --rm \
+          --user root \
           --shm-size=2g \
           -v "$GITHUB_WORKSPACE":"/workspace":rw \
           -w "/workspace" \
