@@ -1,0 +1,257 @@
+name: "WinCC OA Run Tests"
+description: "Execute WinCC OA tests using the TestFramework with language support"
+author: "winccoa-tools-pack"
+
+inputs:
+  project-path:
+    description: "Path to the Squirt project (e.g., src/Squirt)"
+    required: true
+
+  test-project-path:
+    description: "Path to the test project (e.g., tests/WinCC_OA_Test)"
+    required: true
+
+  test-run-id:
+    description: "Unique test run identifier (e.g., Squirt-regression)"
+    required: true
+
+  languages:
+    description: "Test languages, space-separated full locale names (e.g., en_US.utf8 de_AT.utf8)"
+    required: true
+
+  winccoa-version:
+    description: "WinCC OA version (e.g., 3.21)"
+    required: true
+
+  pmon-port:
+    description: "PMON port number"
+    required: false
+    default: "5999"
+
+  upload-artifacts:
+    description: "Upload failed tests and results as artifacts"
+    required: false
+    default: "true"
+
+  publish-junit-report:
+    description: "Publish jUnit report as GitHub check"
+    required: false
+    default: "true"
+
+outputs:
+  test-count:
+    description: "Total number of tests executed"
+    value: ${{ steps.parse-results.outputs.test-count }}
+
+  failure-count:
+    description: "Number of test failures"
+    value: ${{ steps.parse-results.outputs.failure-count }}
+
+  error-count:
+    description: "Number of test errors"
+    value: ${{ steps.parse-results.outputs.error-count }}
+
+  junit-report-file:
+    description: "Path to generated jUnit XML file"
+    value: ${{ steps.parse-results.outputs.junit-report-file }}
+
+  failed-projects-path:
+    description: "Path to failed projects directory"
+    value: ${{ steps.parse-results.outputs.failed-projects-path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up test project
+      id: setup
+      shell: bash
+      env:
+        PROJECT_PATH: ${{ inputs.project-path }}
+        TEST_PROJECT_PATH: ${{ inputs.test-project-path }}
+        LANGUAGES: ${{ inputs.languages }}
+        WINCCOA_VERSION: ${{ inputs.winccoa-version }}
+        PMON_PORT: ${{ inputs.pmon-port }}
+      run: |
+        set -euo pipefail
+        
+        WINCCOA_BIN="/opt/WinCC_OA/${WINCCOA_VERSION}/bin"
+        TEST_PROJECT_PATH="${GITHUB_WORKSPACE}/${TEST_PROJECT_PATH}"
+        CONFIG_DIR="${TEST_PROJECT_PATH}/config"
+        CONFIG_FILE="${CONFIG_DIR}/config"
+        
+        echo "Setting up test project..."
+        echo "  Test project path: ${TEST_PROJECT_PATH}"
+        echo "  Languages: ${LANGUAGES}"
+        
+        # Create config directory
+        mkdir -p "${CONFIG_DIR}"
+        
+        # Create test project config
+        cat > "${CONFIG_FILE}" <<EOF
+        [general]
+        pvss_path = "/opt/WinCC_OA/${WINCCOA_VERSION}"
+        proj_path = "${GITHUB_WORKSPACE}/${PROJECT_PATH}"
+        proj_path = "/opt/WinCC_OA/${WINCCOA_VERSION}/TestFramework_${WINCCOA_VERSION}"
+        proj_path = "${TEST_PROJECT_PATH}"
+        proj_version = "${WINCCOA_VERSION}"
+        langs = "${LANGUAGES}"
+        pmonPort = ${PMON_PORT}
+        [testFramework]
+        installPath = "${TEST_PROJECT_PATH}/"
+        EOF
+        
+        echo "Test config file created at: ${CONFIG_FILE}"
+        
+        # Create log and results directories
+        mkdir -p "${TEST_PROJECT_PATH}/log"
+        mkdir -p "${TEST_PROJECT_PATH}/Results"
+        mkdir -p "${TEST_PROJECT_PATH}/Projects/Stored/Failed"
+        
+        # Register test projects
+        echo "Registering test projects with WCCILpmon..."
+        cd "${TEST_PROJECT_PATH}"
+        
+        "${WINCCOA_BIN}/WCCILpmon" \
+          -config "${CONFIG_FILE}" \
+          -n \
+          -autofreg \
+          -status \
+          -log +stderr || {
+          EXIT_CODE=$?
+          echo "::warning::WCCILpmon exited with code ${EXIT_CODE}. This may be expected if the system manager is not running."
+        }
+
+    - name: Execute WinCC OA tests
+      id: run-tests
+      shell: bash
+      env:
+        TEST_PROJECT_PATH: ${{ inputs.test-project-path }}
+        TEST_RUN_ID: ${{ inputs.test-run-id }}
+        LANGUAGES: ${{ inputs.languages }}
+        WINCCOA_VERSION: ${{ inputs.winccoa-version }}
+      run: |
+        set -euo pipefail
+        
+        WINCCOA_BIN="/opt/WinCC_OA/${WINCCOA_VERSION}/bin"
+        TEST_PROJECT_PATH="${GITHUB_WORKSPACE}/${TEST_PROJECT_PATH}"
+        
+        echo "Starting WinCC OA test execution..."
+        echo "  Test run ID: ${TEST_RUN_ID}"
+        echo "  Languages: ${LANGUAGES}"
+        
+        cd "${WINCCOA_BIN}"
+        
+        # Execute tests with testRunner.ctl
+        TEST_PARAMS="{'testRunId':'${TEST_RUN_ID}','registerGlobalProject':true,'registerAllTools':true,'registerAllTemplates':true,'showLogViewer':false,'TfTestManager.checkForPossibleFreezeTests':true}"
+        
+        echo "Executing: ./WCCOActrl -proj TfCustomizedQG -n testRunner.ctl ${TEST_PARAMS} -log +stderr -lang ${LANGUAGES%% *}"
+        
+        ./WCCOActrl \
+          -proj TfCustomizedQG \
+          -n testRunner.ctl "${TEST_PARAMS}" \
+          -log +stderr \
+          -lang "${LANGUAGES%% *}" || {
+          EXIT_CODE=$?
+          echo "::warning::WCCOActrl test runner exited with code ${EXIT_CODE}"
+          echo "EXIT_CODE=${EXIT_CODE}" >> $GITHUB_ENV
+        }
+        
+        echo "Test execution completed."
+
+    - name: Convert test results to jUnit format
+      id: convert
+      shell: bash
+      env:
+        TEST_PROJECT_PATH: ${{ inputs.test-project-path }}
+        WINCCOA_VERSION: ${{ inputs.winccoa-version }}
+        LANGUAGES: ${{ inputs.languages }}
+      run: |
+        set -euo pipefail
+        
+        WINCCOA_BIN="/opt/WinCC_OA/${WINCCOA_VERSION}/bin"
+        TEST_PROJECT_PATH="${GITHUB_WORKSPACE}/${TEST_PROJECT_PATH}"
+        FIRST_LANG="${LANGUAGES%% *}"
+        
+        echo "Converting test results to jUnit format..."
+        echo "  Using language: ${FIRST_LANG}"
+        
+        cd "${WINCCOA_BIN}"
+        
+        ./WCCOActrl \
+          -proj TfCustomizedQG \
+          -n oaTestParsers/jsonToJUnit.ctl \
+          -log +stderr \
+          -lang "${FIRST_LANG}" || {
+          EXIT_CODE=$?
+          echo "::warning::jUnit conversion exited with code ${EXIT_CODE}"
+        }
+        
+        echo "Result conversion completed."
+
+    - name: Parse test results
+      id: parse-results
+      shell: bash
+      env:
+        TEST_PROJECT_PATH: ${{ inputs.test-project-path }}
+      run: |
+        set -euo pipefail
+        
+        TEST_PROJECT_PATH="${GITHUB_WORKSPACE}/${TEST_PROJECT_PATH}"
+        RESULTS_DIR="${TEST_PROJECT_PATH}/Results"
+        FAILED_DIR="${TEST_PROJECT_PATH}/Projects/Stored/Failed"
+        
+        # Count test results
+        TEST_COUNT=0
+        FAILURE_COUNT=0
+        ERROR_COUNT=0
+        JUNIT_FILE=""
+        
+        if [ -d "${RESULTS_DIR}" ]; then
+          JUNIT_FILE=$(find "${RESULTS_DIR}" -name "jUnit*.xml" -type f | head -1)
+          
+          if [ -n "${JUNIT_FILE}" ]; then
+            # Parse jUnit XML
+            TEST_COUNT=$(grep -o 'tests="[0-9]*"' "${JUNIT_FILE}" | head -1 | grep -o '[0-9]*' || echo "0")
+            FAILURE_COUNT=$(grep -o 'failures="[0-9]*"' "${JUNIT_FILE}" | head -1 | grep -o '[0-9]*' || echo "0")
+            ERROR_COUNT=$(grep -o 'errors="[0-9]*"' "${JUNIT_FILE}" | head -1 | grep -o '[0-9]*' || echo "0")
+            echo "::notice::Test Results - Total: ${TEST_COUNT}, Failures: ${FAILURE_COUNT}, Errors: ${ERROR_COUNT}"
+          fi
+        fi
+        
+        # Check for failed projects
+        FAILED_PROJECTS_PATH=""
+        if [ -d "${FAILED_DIR}" ] && [ "$(ls -A "${FAILED_DIR}")" ]; then
+          FAILED_PROJECTS_PATH="${FAILED_DIR}"
+          echo "::warning::Failed test projects found at: ${FAILED_PROJECTS_PATH}"
+        fi
+        
+        echo "test-count=${TEST_COUNT}" >> $GITHUB_OUTPUT
+        echo "failure-count=${FAILURE_COUNT}" >> $GITHUB_OUTPUT
+        echo "error-count=${ERROR_COUNT}" >> $GITHUB_OUTPUT
+        echo "junit-report-file=${JUNIT_FILE}" >> $GITHUB_OUTPUT
+        echo "failed-projects-path=${FAILED_PROJECTS_PATH}" >> $GITHUB_OUTPUT
+
+    - name: Upload test artifacts
+      if: ${{ inputs.upload-artifacts == 'true' && always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: ${{ inputs.test-project-path }}/Results/
+        if-no-files-found: warn
+
+    - name: Upload failed test projects
+      if: ${{ inputs.upload-artifacts == 'true' && always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: failed-tests
+        path: ${{ inputs.test-project-path }}/Projects/Stored/Failed/
+        if-no-files-found: ignore
+
+    - name: Publish jUnit report
+      if: ${{ inputs.publish-junit-report == 'true' && always() }}
+      uses: mikepenz/action-junit-report@v4
+      with:
+        fail_on_failure: true
+        require_tests: true
+        report_paths: ${{ inputs.test-project-path }}/Results/jUnit*.xml
+        detailed_summary: true
