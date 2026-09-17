@@ -192,10 +192,28 @@ extract_and_annotate_warnings() {
   local doxygen_stdout="${log_dir}/doxygen_stdOut.txt"
   # Preferred durable path when advanced config sets WARN_LOGFILE via $PROJ_PATH.
   local doxygen_warn_logfile="${log_dir}/doxygen_warn_logfile.txt"
-  local warning_pattern='[Ww]arning:|\bWARNING\b|\bSEVERE\b|\bFATAL\b'
+  # Docs/Doxygen-oriented matches. Avoid bare \bWARNING\b so WinCC OA runtime
+  # lines like "WARNING, 127, PmonTable: ..." are not treated as docs warnings.
+  local warning_pattern='[Ww]arning:|\bSEVERE\b|\bFATAL\b'
+  # Explicit OA/runtime noise that must never count toward the docs gate.
+  # Only the known PMON progs-file lookup warning is ignored here.
+  local ignore_warning_pattern='PmonTable:.*progs-file|did not find the progs-file'
   local warning_source=""
 
   : > "${warning_file}"
+
+  filter_docs_warnings() {
+    local src="$1"
+    local dest="$2"
+    if [ ! -f "${src}" ]; then
+      : > "${dest}"
+      return 1
+    fi
+    # Keep only docs-oriented warning lines and drop known OA runtime noise.
+    grep -E "${warning_pattern}" "${src}" \
+      | grep -Eiv "${ignore_warning_pattern}" > "${dest}" || true
+    [ -s "${dest}" ]
+  }
 
   collect_warnings_from() {
     local src="$1"
@@ -213,30 +231,41 @@ extract_and_annotate_warnings() {
       echo "... truncated ..."
     fi
     echo "::endgroup::"
-    grep -E "${warning_pattern}" "${src}" > "${warning_file}" || true
-    if [ -s "${warning_file}" ]; then
+
+    if filter_docs_warnings "${src}" "${warning_file}"; then
       warning_source="${src}"
       return 0
     fi
-    # Non-empty WARN_LOGFILE with no pattern match still counts as the warning source
-    # (doxygen often writes plain warning lines without a WARNING token).
+
+    # Non-empty WARN_LOGFILE with no pattern match still counts as the warning
+    # source (doxygen often writes plain warning lines without a WARNING token).
+    # Still drop known OA runtime noise if it ever lands in that file.
     if [ "${label}" = "doxygen WARN_LOGFILE" ] && [ -s "${src}" ]; then
-      cp -f "${src}" "${warning_file}" || true
-      warning_source="${src}"
-      return 0
+      grep -Eiv "${ignore_warning_pattern}" "${src}" > "${warning_file}" || true
+      if [ -s "${warning_file}" ]; then
+        warning_source="${src}"
+        return 0
+      fi
+      : > "${warning_file}"
     fi
     return 1
   }
 
-  # Prefer WARN_LOGFILE (advanced config), then OA stderr capture, then stdout, then process output.
+  # Prefer WARN_LOGFILE (advanced config), then OA stderr capture, then stdout,
+  # then process output.
   if ! collect_warnings_from "${doxygen_warn_logfile}" "doxygen WARN_LOGFILE"; then
     if ! collect_warnings_from "${doxygen_stderr}" "doxygen stderr log"; then
       if ! collect_warnings_from "${doxygen_stdout}" "doxygen stdout log"; then
-        printf '%s\n' "${output_text}" | grep -E "${warning_pattern}" > "${warning_file}" || true
-        if [ -s "${warning_file}" ]; then
+        local tmp_out
+        tmp_out="$(mktemp)"
+        printf '%s\n' "${output_text}" > "${tmp_out}"
+        if filter_docs_warnings "${tmp_out}" "${warning_file}"; then
           warning_source="process-output"
           echo "::notice::Extracted warnings from process output fallback"
+        else
+          : > "${warning_file}"
         fi
+        rm -f "${tmp_out}"
       fi
     fi
   fi
