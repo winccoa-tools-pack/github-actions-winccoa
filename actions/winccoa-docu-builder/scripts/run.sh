@@ -28,6 +28,13 @@ fi
 
 PROJECT_PATH_NORM="$(normalize_rel_path "${PROJECT_PATH:-.}")"
 COMPANY_NAME="$(resolve_company_name "${COMPANY_NAME_INPUT:-}")"
+HOST_UID=""
+HOST_GID=""
+
+if command -v id >/dev/null 2>&1; then
+  HOST_UID="$(id -u)"
+  HOST_GID="$(id -g)"
+fi
 
 PKG_NAME="@winccoa-tools-pack/npm-winccoa-docu-builder"
 # npm version/dist-tag OR full install spec (github:..., git+https://...)
@@ -73,6 +80,8 @@ if [ -n "${DOCKER_IMAGE:-}" ]; then
     -e PROJECT_DOCU_PATHS="${PROJECT_DOCU_PATHS:-}" \
     -e COMPANY_NAME="${COMPANY_NAME}" \
     -e INSTALL_DOXYGEN="${INSTALL_DOXYGEN:-true}" \
+    -e HOST_UID="${HOST_UID}" \
+    -e HOST_GID="${HOST_GID}" \
     -e GITHUB_WORKSPACE="/workspace" \
     -e PROJECT_PATH_IN_CONTAINER="${CONTAINER_PROJ_PATH}" \
     "${DOCKER_IMAGE}" \
