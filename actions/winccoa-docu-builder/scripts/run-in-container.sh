@@ -31,6 +31,7 @@ restore_workspace_permissions() {
   local target=""
   local resolved=""
   local targets=(
+    "${GITHUB_WORKSPACE:-/workspace}/.artifacts"
     "${PROJECT_PATH_IN_CONTAINER}/log"
     "${PROJECT_PATH_IN_CONTAINER}/help"
     "${PROJECT_PATH_IN_CONTAINER}/data/projectDocu"
@@ -40,6 +41,7 @@ restore_workspace_permissions() {
     [ -z "${target}" ] && continue
     resolved="$(resolve_workspace_path "${target}")" || continue
     targets+=("$(dirname "${resolved}")")
+    targets+=("${resolved}")
   done
 
   for target in "${targets[@]}"; do

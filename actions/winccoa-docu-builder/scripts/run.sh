@@ -50,6 +50,24 @@ fi
 HOST_PROJ_PATH="${GITHUB_WORKSPACE}/${PROJECT_PATH_NORM}"
 CONTAINER_PROJ_PATH="/workspace/${PROJECT_PATH_NORM}"
 
+LOG_REL="${LOG_PATH:-.artifacts/docu-builder.log}"
+if [[ "${LOG_REL}" = /* ]]; then
+  LOG_ABS="${LOG_REL}"
+else
+  LOG_ABS="${GITHUB_WORKSPACE:-$(pwd)}/${LOG_REL}"
+fi
+
+WARNING_REL="${WARNING_OUTPUT_FILE:-.artifacts/doxygen-warnings.txt}"
+if [[ "${WARNING_REL}" = /* ]]; then
+  WARNING_ABS="${WARNING_REL}"
+else
+  WARNING_ABS="${GITHUB_WORKSPACE:-$(pwd)}/${WARNING_REL}"
+fi
+
+# Pre-create host-owned artifact dirs so the post-docker host steps can write
+# even if the container leaves nested root-owned files behind.
+mkdir -p "$(dirname "${LOG_ABS}")" "$(dirname "${WARNING_ABS}")"
+
 set +e
 if [ -n "${DOCKER_IMAGE:-}" ]; then
   if ! command -v docker >/dev/null 2>&1; then
@@ -82,11 +100,27 @@ if [ -n "${DOCKER_IMAGE:-}" ]; then
     -e INSTALL_DOXYGEN="${INSTALL_DOXYGEN:-true}" \
     -e HOST_UID="${HOST_UID}" \
     -e HOST_GID="${HOST_GID}" \
+    -e LOG_PATH="${LOG_PATH:-.artifacts/docu-builder.log}" \
+    -e WARNING_OUTPUT_FILE="${WARNING_OUTPUT_FILE:-.artifacts/doxygen-warnings.txt}" \
     -e GITHUB_WORKSPACE="/workspace" \
     -e PROJECT_PATH_IN_CONTAINER="${CONTAINER_PROJ_PATH}" \
     "${DOCKER_IMAGE}" \
     bash /action/scripts/run-in-container.sh 2>&1)
   EXIT_CODE=$?
+  # Host-side safety net: reclaim root-owned artifact dirs before host writes.
+  if [ -n "${HOST_UID}" ] && [ -n "${HOST_GID}" ]; then
+    docker run --rm \
+      --user root \
+      -v "${GITHUB_WORKSPACE}:/workspace:rw" \
+      -w /workspace \
+      "${DOCKER_IMAGE}" \
+      bash -lc "chown -R ${HOST_UID}:${HOST_GID} \
+        /workspace/.artifacts \
+        \"${CONTAINER_PROJ_PATH}/log\" \
+        \"${CONTAINER_PROJ_PATH}/help\" \
+        \"${CONTAINER_PROJ_PATH}/data/projectDocu\" \
+        2>/dev/null || true" >/dev/null 2>&1 || true
+  fi
 else
   if [ ! -d "${HOST_PROJ_PATH}" ]; then
     echo "::error::Project path does not exist: ${HOST_PROJ_PATH}"
@@ -106,22 +140,9 @@ echo "--- Docs build output ---"
 printf '%s\n' "${OUTPUT}"
 echo "--- end output ---"
 
-LOG_REL="${LOG_PATH:-.artifacts/docu-builder.log}"
-if [[ "${LOG_REL}" = /* ]]; then
-  LOG_ABS="${LOG_REL}"
-else
-  LOG_ABS="${GITHUB_WORKSPACE:-$(pwd)}/${LOG_REL}"
-fi
 mkdir -p "$(dirname "${LOG_ABS}")"
 printf '%s\n' "${OUTPUT}" > "${LOG_ABS}"
 echo "Wrote docs log: ${LOG_ABS}"
-
-WARNING_REL="${WARNING_OUTPUT_FILE:-.artifacts/doxygen-warnings.txt}"
-if [[ "${WARNING_REL}" = /* ]]; then
-  WARNING_ABS="${WARNING_REL}"
-else
-  WARNING_ABS="${GITHUB_WORKSPACE:-$(pwd)}/${WARNING_REL}"
-fi
 
 set +e
 extract_and_annotate_warnings "${PROJECT_PATH_NORM}" "${OUTPUT}" "${WARNING_ABS}"
