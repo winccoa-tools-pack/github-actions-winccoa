@@ -40,7 +40,7 @@ inputs:
       Optional multi-line (or space/comma-separated) list of external projectDocu
       directories relative to the repository root. Merged into
       <path>/data/projectDocu before the build (left → right: advanced config
-      concatenates; other files last-wins). Example: org theme then project
+      concatenates; other files last-wins). Example: shared theme then project
       .winccoa-docu-builder overrides.
     required: false
     default: ""
@@ -84,7 +84,14 @@ inputs:
   warning-output-file:
     description: "Path (relative to workspace) where extracted warnings are written."
     required: false
-    default: ".artifacts/doxygen-warnings.txt"
+    default: ".artifacts/documentation-warnings.txt"
+
+  install-doc-tooling:
+    description: >-
+      When true, attempt install of required documentation tooling inside the
+      container/host before building.
+    required: false
+    default: ""
 
   annotate-warnings:
     description: "Emit parsed warnings as GitHub annotations."
@@ -102,11 +109,9 @@ inputs:
     default: "200"
 
   install-doxygen:
-    description: >-
-      When true, attempt apt-get install of doxygen and graphviz inside the
-      container/host before building.
+    description: "Deprecated compatibility alias for install-doc-tooling."
     required: false
-    default: "true"
+    default: ""
 
   node-version:
     description: "Node.js major version installed when the environment has no Node"
@@ -148,6 +153,7 @@ runs:
         PROJECT_DOCU_PATHS: ${{ inputs.project-docu-paths }}
         LOG_PATH: ${{ inputs.log-path }}
         WARNING_OUTPUT_FILE: ${{ inputs.warning-output-file }}
+        INSTALL_DOC_TOOLING: ${{ inputs.install-doc-tooling }}
         ANNOTATE_WARNINGS: ${{ inputs.annotate-warnings }}
         MAX_WARNING_COUNT: ${{ inputs.max-warning-count }}
         MAX_ANNOTATIONS: ${{ inputs.max-annotations }}

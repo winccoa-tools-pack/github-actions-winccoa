@@ -10,7 +10,7 @@ Uses the **worker + DocuBuilder** model:
 3. Optionally merge external **projectDocu** directories into
    `<path>/data/projectDocu`
 4. Run `WCCOActrl -config <worker>/config/config ... buildHelp.ctl <CompanyName>`
-5. Extract doxygen warnings, emit PR annotations, optionally enforce a max count
+5. Extract documentation warnings, emit PR annotations, optionally enforce a max count
 
 ## Runtime and compatibility
 
@@ -36,11 +36,11 @@ Uses the **worker + DocuBuilder** model:
 | `timeout-ms` | No | `600000` | WCCOActrl timeout in milliseconds |
 | `package-version` | No | `0.2.1` | npm version/dist-tag, or `github:owner/repo#ref` bootstrap spec |
 | `log-path` | No | `.artifacts/docu-builder.log` | Captured log path |
-| `warning-output-file` | No | `.artifacts/doxygen-warnings.txt` | Extracted warnings file |
+| `warning-output-file` | No | `.artifacts/documentation-warnings.txt` | Extracted warnings file |
 | `annotate-warnings` | No | `true` | Emit GitHub warning annotations |
 | `max-warning-count` | No | `-1` | Fail when warnings exceed this (`-1` = off) |
 | `max-annotations` | No | `200` | Cap for annotations |
-| `install-doxygen` | No | `true` | apt-get install doxygen/graphviz when missing |
+| `install-doc-tooling` | No | empty | Optional install of required documentation tooling |
 | `node-version` | No | `22` | Node major when bootstrapping Node |
 
 ### `project-docu-paths`
@@ -48,14 +48,14 @@ Uses the **worker + DocuBuilder** model:
 Ordered list of directories (relative to the repository root) whose **top-level
 files** are merged into `<path>/data/projectDocu` before the build:
 
-- `advanced_doxygenConfig.txt` fragments are **concatenated** (later keys win)
+- the advanced config fragment is **concatenated** (later keys win)
 - other files (`extra_header.html`, `extra_stylesheet.css`, …) use **last-wins**
 
 Typical layering:
 
 ```yaml
 project-docu-paths: |
-  .doxygen-awesome-css
+  .documentation-theme
   .winccoa-docu-builder
 ```
 
@@ -107,7 +107,7 @@ jobs:
           docker-image: ${{ env.WINCCOA_IMAGE }}
           company-name: winccoa-tools-pack
           project-docu-paths: |
-            .doxygen-awesome-css
+            .documentation-theme
             .winccoa-docu-builder
           package-version: '0.2.1'
           max-warning-count: '-1'
@@ -128,20 +128,13 @@ After the fix release, switch back to a semver such as `0.2.1`.
 
 - v1 builds documentation from the **runner/worker project only**.
 - Test-suite source documentation can be added later.
-- Annotations map `file:line[:col]: message` style doxygen lines onto PR files
+- Annotations map `file:line[:col]: message` style tool output onto PR files
   when paths are present in the warning text.
-- Warning extraction order:
-  1. `<path>/log/doxygen_warn_logfile.txt` (`WARN_LOGFILE` from advanced config)
-  2. `<path>/log/doxygen_stdErr.txt`
-  3. `<path>/log/doxygen_stdOut.txt`
-  4. process output fallback
+- Warning extraction order: dedicated warning logfile, stderr log, stdout log,
+  then process output fallback.
 - After a successful build, the action stages debug files next to
-  `warning-output-file` for artifact upload:
-  - `advanced_doxygenConfig.txt` (user/advanced fragment from
-    `<path>/data/projectDocu/`)
-  - `doxygenConfig.txt` (merged config written by WinCC OA
-    `DoxygenConfig::create()`)
-  - `doxygen_warn_logfile.txt` when `WARN_LOGFILE` was produced
+  `warning-output-file` for artifact upload, including configuration fragments,
+  generated merged configuration, and warning logs.
 
 ---
 

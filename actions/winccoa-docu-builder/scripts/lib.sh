@@ -79,20 +79,25 @@ ensure_node() {
 }
 
 ensure_doxygen() {
-  if [ "${INSTALL_DOXYGEN:-true}" != "true" ]; then
-    echo "Skipping doxygen/graphviz install (install-doxygen=false)"
+  local install_doc_tooling="${INSTALL_DOC_TOOLING:-}"
+  if [ -z "${install_doc_tooling}" ]; then
+    install_doc_tooling="${INSTALL_DOXYGEN:-true}"
+  fi
+
+  if [ "${install_doc_tooling}" != "true" ]; then
+    echo "Skipping documentation tooling install"
     return 0
   fi
   if command -v doxygen >/dev/null 2>&1; then
-    echo "Using existing doxygen $(doxygen --version 2>/dev/null || true)"
+    echo "Using existing documentation tooling"
     return 0
   fi
   if command -v apt-get >/dev/null 2>&1; then
-    echo "Installing doxygen and graphviz"
+    echo "Installing documentation tooling"
     apt-get update -qq
     apt-get --assume-yes install -f doxygen graphviz
   else
-    echo "::warning::apt-get not available; assuming doxygen and graphviz are preinstalled"
+    echo "::warning::apt-get not available; assuming required documentation tooling is preinstalled"
   fi
 }
 
