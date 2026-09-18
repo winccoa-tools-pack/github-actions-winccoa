@@ -67,6 +67,10 @@ outputs:
     description: "Number of SEVERE log entries found in PVSS_II.log"
     value: ${{ steps.check-pvss-log.outputs.severe-count }}
 
+  pvss-log-status:
+    description: "Whether the PVSS log inspection detected a failing condition"
+    value: ${{ steps.check-pvss-log.outputs.should-fail }}
+
 runs:
   using: "composite"
   steps:
@@ -207,6 +211,7 @@ runs:
 
         WARNING_COUNT=$(grep -Ec ',[[:space:]]+WARNING,' "${LOG_FILE}" || true)
         SEVERE_COUNT=$(grep -Ec ',[[:space:]]+SEVERE,' "${LOG_FILE}" || true)
+        SHOULD_FAIL=false
 
         echo "pvss-log-file=${LOG_FILE}" >> "$GITHUB_OUTPUT"
         echo "warning-count=${WARNING_COUNT}" >> "$GITHUB_OUTPUT"
@@ -215,20 +220,21 @@ runs:
         if [ "${WARNING_COUNT}" -gt 0 ]; then
           echo "::warning::Found ${WARNING_COUNT} WARNING log entries in PVSS_II.log"
           grep -En ',[[:space:]]+WARNING,' "${LOG_FILE}" || true
+          SHOULD_FAIL=true
         fi
 
         if [ "${SEVERE_COUNT}" -gt 0 ]; then
           echo "::error::Found ${SEVERE_COUNT} SEVERE log entries in PVSS_II.log"
           grep -En ',[[:space:]]+SEVERE,' "${LOG_FILE}" || true
+          SHOULD_FAIL=true
         fi
 
         if [ -n "${TEST_RUNNER_EXIT_CODE:-}" ] && [ "${TEST_RUNNER_EXIT_CODE}" != "0" ]; then
           echo "::error::WCCOActrl test runner exited with code ${TEST_RUNNER_EXIT_CODE}"
+          SHOULD_FAIL=true
         fi
 
-        if [ "${WARNING_COUNT}" -gt 0 ] || [ "${SEVERE_COUNT}" -gt 0 ] || { [ -n "${TEST_RUNNER_EXIT_CODE:-}" ] && [ "${TEST_RUNNER_EXIT_CODE}" != "0" ]; }; then
-          exit 1
-        fi
+        echo "should-fail=${SHOULD_FAIL}" >> "$GITHUB_OUTPUT"
 
     - name: Parse test results
       id: parse-results
@@ -297,3 +303,11 @@ runs:
         require_tests: true
         report_paths: ${{ inputs.winccoa-test-path }}/Results/jUnit*.xml
         detailed_summary: true
+
+    - name: Fail on test runner warnings or errors
+      if: ${{ always() && steps.check-pvss-log.outputs.should-fail == 'true' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::error::Failing because the WinCC OA test run produced WARNING/SEVERE log entries or a non-zero manager exit code."
+        exit 1

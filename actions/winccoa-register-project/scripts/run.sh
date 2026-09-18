@@ -52,6 +52,7 @@ if [ -n "${DOCKER_IMAGE:-}" ]; then
     -e PROJECT_PATH="${CONTAINER_PROJ_PATH}" \
     -e SUB_PROJECTS="${SUB_PROJECTS:-}" \
     -e LANGS="${LANGS}" \
+    -e RUNNABLE="${RUNNABLE:-true}" \
     -e WINCCOA_VERSION="${WINCCOA_VERSION}" \
     -e PACKAGE_VERSION="${PACKAGE_VERSION}" \
     -e NODE_VERSION="${NODE_VERSION:-22}" \

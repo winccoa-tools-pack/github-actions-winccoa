@@ -20,6 +20,13 @@ inputs:
       locale names (e.g., en_US.utf8 de_AT.utf8).
     required: true
 
+  runnable:
+    description: >-
+      Whether the registered project should be runnable. Use false for helper
+      or library-only sub-projects that must exist in the registry.
+    required: false
+    default: "true"
+
   winccoa-version:
     description: "WinCC OA version (e.g., 3.21). Required."
     required: true
@@ -54,6 +61,7 @@ runs:
         PROJECT_PATH: ${{ inputs.project-path }}
         SUB_PROJECTS: ${{ inputs.sub-projects }}
         LANGUAGES: ${{ inputs.languages }}
+        RUNNABLE: ${{ inputs.runnable }}
         WINCCOA_VERSION: ${{ inputs.winccoa-version }}
         DOCKER_IMAGE: ${{ inputs.docker-image }}
         PACKAGE_VERSION: ${{ inputs.package-version }}

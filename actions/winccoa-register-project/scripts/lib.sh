@@ -75,7 +75,7 @@ run_register_cli() {
     --project-path "${project_path}"
     --langs "${LANGS}"
     --wincc-oa-version "${WINCCOA_VERSION}"
-    --runnable true
+    --runnable "${RUNNABLE:-true}"
   )
 
   if [ -n "${SUB_PROJECTS:-}" ]; then
