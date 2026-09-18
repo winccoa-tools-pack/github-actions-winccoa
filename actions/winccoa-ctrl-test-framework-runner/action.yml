@@ -76,14 +76,18 @@ runs:
   steps:
     - name: Register custom WinCC OA Test Framework project
       id: setup
-      uses: ./actions/winccoa-register-project
-      with:
-        project-path: ${{ inputs.winccoa-test-path }}/Projects/TfCustomizedSquirt
-        sub-projects: |
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}/../winccoa-register-project
+        PROJECT_PATH: ${{ inputs.winccoa-test-path }}/Projects/TfCustomizedSquirt
+        SUB_PROJECTS: |
           TestFramework_${{ inputs.winccoa-version }}
           ${{ inputs.winccoa-test-path }}/Projects/Global
-        languages: ${{ inputs.languages }}
-        winccoa-version: ${{ inputs.winccoa-version }}
+        LANGUAGES: ${{ inputs.languages }}
+        WINCCOA_VERSION: ${{ inputs.winccoa-version }}
+        PACKAGE_VERSION: "1.1.1"
+        NODE_VERSION: "22"
+      run: bash "${{ github.action_path }}/../winccoa-register-project/scripts/run.sh"
 
     - name: Set additional config entries for TfCustomizedSquirt
       shell: bash
