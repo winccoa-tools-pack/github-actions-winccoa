@@ -85,9 +85,16 @@ runs:
       run: |
         set -euo pipefail
 
+        LANGS="$(printf '%s\n' "${{ inputs.languages }}" | tr '\n' ' ' | xargs | tr ' ' ',')"
+
+        if [ -z "${LANGS}" ]; then
+          echo "::error::languages resolved to an empty list"
+          exit 2
+        fi
+
         npx --yes @winccoa-tools-pack/npm-winccoa-register-project@1.1.1 \
           --project-path "${GITHUB_WORKSPACE}/${{ inputs.winccoa-test-path }}/Projects/TfCustomizedSquirt" \
-          --langs "${{ inputs.languages }}" \
+          --langs "${LANGS}" \
           --wincc-oa-version "${{ inputs.winccoa-version }}" \
           --sub-project "TestFramework_${{ inputs.winccoa-version }}" \
           --sub-project "${GITHUB_WORKSPACE}/${{ inputs.winccoa-test-path }}/Projects/Global"
