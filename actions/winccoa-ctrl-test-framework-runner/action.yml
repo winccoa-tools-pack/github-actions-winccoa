@@ -12,7 +12,7 @@ inputs:
     required: true
 
   languages:
-    description: "Test languages, space-separated full locale names (e.g., en_US.utf8 de_AT.utf8)"
+    description: "Test languages input (registration currently uses en_US.utf8)"
     required: true
 
   winccoa-version:
@@ -85,12 +85,7 @@ runs:
       run: |
         set -euo pipefail
 
-        LANGS="$(printf '%s\n' "${{ inputs.languages }}" | tr '\n' ' ' | xargs | tr ' ' ',')"
-
-        if [ -z "${LANGS}" ]; then
-          echo "::error::languages resolved to an empty list"
-          exit 2
-        fi
+        LANGS="en_US.utf8"
 
         npx --yes @winccoa-tools-pack/npm-winccoa-register-project@1.1.1 \
           --project-path "${GITHUB_WORKSPACE}/${{ inputs.winccoa-test-path }}/Projects/TfCustomizedSquirt" \
