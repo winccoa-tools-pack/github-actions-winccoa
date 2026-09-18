@@ -74,20 +74,23 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Set up Node.js for registration
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
     - name: Register custom WinCC OA Test Framework project
       id: setup
       shell: bash
-      env:
-        ACTION_PATH: ${{ github.action_path }}/../winccoa-register-project
-        PROJECT_PATH: ${{ inputs.winccoa-test-path }}/Projects/TfCustomizedSquirt
-        SUB_PROJECTS: |
-          TestFramework_${{ inputs.winccoa-version }}
-          ${{ inputs.winccoa-test-path }}/Projects/Global
-        LANGUAGES: ${{ inputs.languages }}
-        WINCCOA_VERSION: ${{ inputs.winccoa-version }}
-        PACKAGE_VERSION: "1.1.1"
-        NODE_VERSION: "22"
-      run: bash "${{ github.action_path }}/../winccoa-register-project/scripts/run.sh"
+      run: |
+        set -euo pipefail
+
+        npx --yes @winccoa-tools-pack/npm-winccoa-register-project@1.1.1 \
+          --project-path "${GITHUB_WORKSPACE}/${{ inputs.winccoa-test-path }}/Projects/TfCustomizedSquirt" \
+          --langs "${{ inputs.languages }}" \
+          --wincc-oa-version "${{ inputs.winccoa-version }}" \
+          --sub-project "TestFramework_${{ inputs.winccoa-version }}" \
+          --sub-project "${GITHUB_WORKSPACE}/${{ inputs.winccoa-test-path }}/Projects/Global"
 
     - name: Set additional config entries for TfCustomizedSquirt
       shell: bash
