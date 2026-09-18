@@ -180,12 +180,121 @@ run_docu_cli() {
   node "${entry}" "${args[@]}"
 }
 
+
+# Rewrite OA/Doxygen absolute temp paths in warning lines to repo-relative
+# worker paths, e.g.
+#   C:/Users/.../Temp/WinCC_OA_docuGenerator/scripts/x.ctl:12: warning: ...
+# -> src/Squirt/scripts/x.ctl:12: warning: ...
+normalize_warning_file_path() {
+  local file_path="$1"
+  local worker_rel="$2"
+  local repo_root="$3"
+  local p
+  p="$(printf '%s' "${file_path}" | sed 's|\\|/|g')"
+
+  # OA temp generator tree (any host prefix).
+  if printf '%s' "${p}" | grep -qiE '/WinCC_OA_docuGenerator/'; then
+    p="$(printf '%s' "${p}" | sed -E 's|.*/WinCC_OA_docuGenerator/||I')"
+    p="${worker_rel%/}/${p}"
+    printf '%s' "${p}" | sed -E 's|/+|/|g; s|^\./||'
+    return 0
+  fi
+
+  # Strip common workspace mounts.
+  p="${p#/workspace/}"
+  p="${p#/github/workspace/}"
+
+  # Absolute path under repo root.
+  if [ -n "${repo_root}" ]; then
+    local root_norm
+    root_norm="$(printf '%s' "${repo_root}" | sed 's|\\|/|g')"
+    root_norm="${root_norm%/}"
+    case "${p}" in
+      "${root_norm}/"*)
+        p="${p#${root_norm}/}"
+        ;;
+    esac
+  fi
+
+  printf '%s' "${p}" | sed -E 's|^\./||'
+}
+
+normalize_warning_line_paths() {
+  local line="$1"
+  local worker_rel="$2"
+  local repo_root="$3"
+  local file_path line_no col_no message
+
+  # Windows drive path with optional column: C:/a/b.ctl:12: warning: ...
+  if [[ "${line}" =~ ^([A-Za-z]:/[^:]+):([0-9]+)(:([0-9]+))?:[[:space:]]*(.*)$ ]]; then
+    file_path="$(normalize_warning_file_path "${BASH_REMATCH[1]}" "${worker_rel}" "${repo_root}")"
+    line_no="${BASH_REMATCH[2]}"
+    col_no="${BASH_REMATCH[4]}"
+    message="${BASH_REMATCH[5]}"
+    if [ -n "${col_no}" ]; then
+      printf '%s:%s:%s: %s\n' "${file_path}" "${line_no}" "${col_no}" "${message}"
+    else
+      printf '%s:%s: %s\n' "${file_path}" "${line_no}" "${message}"
+    fi
+    return 0
+  fi
+
+  # Unix/relative path with optional column.
+  if [[ "${line}" =~ ^([^:]+):([0-9]+)(:([0-9]+))?:[[:space:]]*(.*)$ ]]; then
+    file_path="${BASH_REMATCH[1]}"
+    # Skip non-path OA runtime lines like "WARNING, 127, ..."
+    if [[ "${file_path}" != */* && "${file_path}" != *.* ]]; then
+      printf '%s\n' "${line}"
+      return 0
+    fi
+    file_path="$(normalize_warning_file_path "${file_path}" "${worker_rel}" "${repo_root}")"
+    line_no="${BASH_REMATCH[2]}"
+    col_no="${BASH_REMATCH[4]}"
+    message="${BASH_REMATCH[5]}"
+    if [ -n "${col_no}" ]; then
+      printf '%s:%s:%s: %s\n' "${file_path}" "${line_no}" "${col_no}" "${message}"
+    else
+      printf '%s:%s: %s\n' "${file_path}" "${line_no}" "${message}"
+    fi
+    return 0
+  fi
+
+  printf '%s\n' "${line}"
+}
+
+normalize_warning_file_in_place() {
+  local src="$1"
+  local worker_rel="$2"
+  local repo_root="$3"
+  local tmp
+  [ -f "${src}" ] || return 0
+  tmp="$(mktemp)"
+  while IFS= read -r line || [ -n "${line}" ]; do
+    normalize_warning_line_paths "${line}" "${worker_rel}" "${repo_root}"
+  done < "${src}" > "${tmp}"
+  mv -f "${tmp}" "${src}"
+}
+
 extract_and_annotate_warnings() {
   local project_path_norm="$1"
   local output_text="$2"
   local warning_file="$3"
 
   mkdir -p "$(dirname "${warning_file}")"
+
+  local repo_root="${GITHUB_WORKSPACE:-${REPO_ROOT:-$(pwd)}}"
+  local worker_rel
+  # Prefer action PROJECT_PATH (public relative worker path) when set.
+  if [ -n "${PROJECT_PATH:-}" ]; then
+    worker_rel="$(normalize_rel_path "${PROJECT_PATH}")"
+  elif [[ "${project_path_norm}" = /* ]] || [[ "${project_path_norm}" =~ ^[A-Za-z]:/ ]]; then
+    worker_rel="$(normalize_warning_file_path "${project_path_norm}" "." "${repo_root}")"
+    if [[ "${worker_rel}" = /* ]] || [[ "${worker_rel}" =~ ^[A-Za-z]:/ ]]; then
+      worker_rel="${project_path_norm##*/}"
+    fi
+  else
+    worker_rel="${project_path_norm#./}"
+  fi
 
   local log_dir="${project_path_norm}/log"
   local doxygen_stderr="${log_dir}/doxygen_stdErr.txt"
@@ -276,6 +385,14 @@ extract_and_annotate_warnings() {
     echo "::notice::No doxygen warning lines found in WARN_LOGFILE/stderr/stdout/process output"
   fi
 
+  # Rewrite absolute OA temp / workspace paths to repository-relative worker paths.
+  if [ -f "${warning_file}" ]; then
+    normalize_warning_file_in_place "${warning_file}" "${worker_rel}" "${repo_root}"
+  fi
+  if [ -f "${doxygen_warn_logfile}" ]; then
+    normalize_warning_file_in_place "${doxygen_warn_logfile}" "${worker_rel}" "${repo_root}"
+  fi
+
   if [ -f "${doxygen_stdout}" ] && [ "${warning_source}" != "${doxygen_stdout}" ]; then
     echo "::notice::Found doxygen stdout log at ${doxygen_stdout}"
   fi
@@ -336,13 +453,23 @@ extract_and_annotate_warnings() {
       fi
 
       local file_path="" line_no="" col_no="" message=""
-      if [[ "${warning_line}" =~ ^([^:]+):([0-9]+):([0-9]+):[[:space:]]*(.*)$ ]]; then
-        file_path="${BASH_REMATCH[1]#/workspace/}"
+      # Lines are already path-normalized; still rewrite leftover absolute prefixes.
+      if [[ "${warning_line}" =~ ^([A-Za-z]:/[^:]+):([0-9]+):([0-9]+):[[:space:]]*(.*)$ ]]; then
+        file_path="$(normalize_warning_file_path "${BASH_REMATCH[1]}" "${worker_rel}" "${repo_root}")"
+        line_no="${BASH_REMATCH[2]}"
+        col_no="${BASH_REMATCH[3]}"
+        message="${BASH_REMATCH[4]}"
+      elif [[ "${warning_line}" =~ ^([A-Za-z]:/[^:]+):([0-9]+):[[:space:]]*(.*)$ ]]; then
+        file_path="$(normalize_warning_file_path "${BASH_REMATCH[1]}" "${worker_rel}" "${repo_root}")"
+        line_no="${BASH_REMATCH[2]}"
+        message="${BASH_REMATCH[3]}"
+      elif [[ "${warning_line}" =~ ^([^:]+):([0-9]+):([0-9]+):[[:space:]]*(.*)$ ]]; then
+        file_path="$(normalize_warning_file_path "${BASH_REMATCH[1]}" "${worker_rel}" "${repo_root}")"
         line_no="${BASH_REMATCH[2]}"
         col_no="${BASH_REMATCH[3]}"
         message="${BASH_REMATCH[4]}"
       elif [[ "${warning_line}" =~ ^([^:]+):([0-9]+):[[:space:]]*(.*)$ ]]; then
-        file_path="${BASH_REMATCH[1]#/workspace/}"
+        file_path="$(normalize_warning_file_path "${BASH_REMATCH[1]}" "${worker_rel}" "${repo_root}")"
         line_no="${BASH_REMATCH[2]}"
         message="${BASH_REMATCH[3]}"
       else

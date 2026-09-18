@@ -31,6 +31,10 @@ Uses the **worker + DocuBuilder** model:
 | `winccoa-version` | Yes | - | Installed WinCC OA version such as `3.21` |
 | `languages` | No | `en_US.utf8` | Locales for worker registration |
 | `project-docu-paths` | No | empty | Multi-line external projectDocu dirs (theme → project) |
+| `theme-repository` | No | empty | Optional org theme repo (`owner/name`), e.g. `winccoa-tools-pack/docu-builder-theme` |
+| `theme-ref` | No | `main` | Git ref for `theme-repository` |
+| `theme-path` | No | `.docu-builder-theme` | Checkout path + projectDocu entry for the theme |
+| `theme-token` | No | empty | Optional token for private theme repos (defaults to `github.token`) |
 | `docker-image` | No | empty | Optional WinCC OA container image |
 | `register-project` | No | `true` | Let the package register DocuBuilder + worker |
 | `timeout-ms` | No | `600000` | WCCOActrl timeout in milliseconds |
@@ -49,13 +53,26 @@ Ordered list of directories (relative to the repository root) whose **top-level
 files** are merged into `<path>/data/projectDocu` before the build:
 
 - the advanced config fragment is **concatenated** (later keys win)
-- other files (`extra_header.html`, `extra_stylesheet.css`, …) use **last-wins**
+- other files (`extra_header.html`, theme CSS/JS, …) use **last-wins**
 
-Typical layering:
+When `theme-repository` is set, the action checks out that repo into
+`theme-path` (default `.docu-builder-theme`) and **prepends** it to
+`project-docu-paths`.
+
+Typical layering with the org theme:
+
+```yaml
+theme-repository: winccoa-tools-pack/docu-builder-theme
+theme-ref: main
+project-docu-paths: |
+  .winccoa-docu-builder
+```
+
+Equivalent manual checkout:
 
 ```yaml
 project-docu-paths: |
-  .documentation-theme
+  .docu-builder-theme
   .winccoa-docu-builder
 ```
 
@@ -106,8 +123,9 @@ jobs:
           winccoa-version: '3.21'
           docker-image: ${{ env.WINCCOA_IMAGE }}
           company-name: winccoa-tools-pack
+          theme-repository: winccoa-tools-pack/docu-builder-theme
+          theme-ref: main
           project-docu-paths: |
-            .documentation-theme
             .winccoa-docu-builder
           package-version: '0.2.1'
           max-warning-count: '-1'
@@ -130,6 +148,10 @@ After the fix release, switch back to a semver such as `0.2.1`.
 - Test-suite source documentation can be added later.
 - Annotations map `file:line[:col]: message` style tool output onto PR files
   when paths are present in the warning text.
+- Absolute OA temp generator paths such as
+  `.../Temp/WinCC_OA_docuGenerator/scripts/...` are rewritten to repository-
+  relative worker paths (for example `src/Squirt/scripts/...`) in the
+  extracted warning file, staged `doxygen_warn_logfile.txt`, and annotations.
 - Warning extraction order: dedicated warning logfile, stderr log, stdout log,
   then process output fallback.
 - After a successful build, the action stages debug files next to

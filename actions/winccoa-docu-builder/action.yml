@@ -41,7 +41,39 @@ inputs:
       directories relative to the repository root. Merged into
       <path>/data/projectDocu before the build (left → right: advanced config
       concatenates; other files last-wins). Example: shared theme then project
-      .winccoa-docu-builder overrides.
+      .winccoa-docu-builder overrides. When theme-repository is set, the checked
+      out theme path is prepended automatically.
+    required: false
+    default: ""
+
+  theme-repository:
+    description: >-
+      Optional GitHub repository (owner/name) that holds the shared org
+      documentation theme (top-level projectDocu files such as extra_header.html
+      and Doxygen Awesome assets). When set, the action checks it out and
+      prepends theme-path to project-docu-paths. Example:
+      winccoa-tools-pack/docu-builder-theme
+    required: false
+    default: ""
+
+  theme-ref:
+    description: >-
+      Git ref (branch, tag, or SHA) for theme-repository. Ignored when
+      theme-repository is empty.
+    required: false
+    default: "main"
+
+  theme-path:
+    description: >-
+      Workspace-relative path where theme-repository is checked out. Also used
+      as the project-docu path entry for the theme.
+    required: false
+    default: ".docu-builder-theme"
+
+  theme-token:
+    description: >-
+      Optional token for checking out a private theme-repository. Defaults to
+      the job github.token (fine for public org themes).
     required: false
     default: ""
 
@@ -135,6 +167,69 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Checkout shared documentation theme
+      if: ${{ inputs.theme-repository != '' }}
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.theme-repository }}
+        ref: ${{ inputs.theme-ref }}
+        path: ${{ inputs.theme-path }}
+        token: ${{ inputs.theme-token != '' && inputs.theme-token || github.token }}
+        persist-credentials: false
+
+    - name: Compose project-docu paths
+      id: project_docu
+      shell: bash
+      env:
+        THEME_REPOSITORY: ${{ inputs.theme-repository }}
+        THEME_PATH: ${{ inputs.theme-path }}
+        PROJECT_DOCU_PATHS_INPUT: ${{ inputs.project-docu-paths }}
+      run: |
+        set -euo pipefail
+        paths=()
+        if [ -n "${THEME_REPOSITORY}" ]; then
+          theme_path="${THEME_PATH:-.docu-builder-theme}"
+          theme_path="${theme_path#./}"
+          if [ ! -d "${GITHUB_WORKSPACE}/${theme_path}" ]; then
+            echo "::error::theme-repository was set but checkout path is missing: ${theme_path}"
+            exit 2
+          fi
+          paths+=("${theme_path}")
+          echo "Using shared documentation theme from ${THEME_REPOSITORY} at ${theme_path}"
+        fi
+
+        # Preserve multi-line / comma / space lists from the input.
+        while IFS= read -r line || [ -n "${line}" ]; do
+          line="$(echo "${line}" | xargs)"
+          [ -z "${line}" ] && continue
+          # Avoid duplicating the theme path if the caller already listed it.
+          skip=0
+          for existing in "${paths[@]:-}"; do
+            if [ "${existing}" = "${line}" ] || [ "${existing}" = "./${line}" ] || [ "./${existing}" = "${line}" ]; then
+              skip=1
+              break
+            fi
+          done
+          [ "${skip}" -eq 1 ] && continue
+          paths+=("${line}")
+        done < <(printf '%s\n' "${PROJECT_DOCU_PATHS_INPUT:-}" | tr ',;' '\n')
+
+        composed=""
+        if [ "${#paths[@]}" -gt 0 ]; then
+          composed="$(printf '%s\n' "${paths[@]}")"
+        fi
+        {
+          echo "paths<<EOF"
+          printf '%s\n' "${composed}"
+          echo "EOF"
+        } >> "${GITHUB_OUTPUT}"
+        if [ -n "${composed}" ]; then
+          echo "Resolved project-docu-paths:"
+          printf '%s\n' "${composed}"
+        else
+          echo "No external project-docu-paths configured"
+        fi
+
     - name: Run docs build via public npm package
       id: run
       shell: bash
@@ -150,7 +245,7 @@ runs:
         PACKAGE_VERSION: ${{ inputs.package-version }}
         NODE_VERSION: ${{ inputs.node-version }}
         LANGUAGES: ${{ inputs.languages }}
-        PROJECT_DOCU_PATHS: ${{ inputs.project-docu-paths }}
+        PROJECT_DOCU_PATHS: ${{ steps.project_docu.outputs.paths }}
         LOG_PATH: ${{ inputs.log-path }}
         WARNING_OUTPUT_FILE: ${{ inputs.warning-output-file }}
         INSTALL_DOC_TOOLING: ${{ inputs.install-doc-tooling }}
