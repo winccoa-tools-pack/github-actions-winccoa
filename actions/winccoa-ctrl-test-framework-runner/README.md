@@ -8,7 +8,7 @@ Executes WinCC OA tests using the WinCC OA TestFramework with automatic jUnit re
 | ------- | ---------- | --------- | ------------- |
 | `winccoa-test-path` | yes | - | Path to the test sources based on WinCC OA TestFramework struct (e.g., `tests/WinCC_OA_Test`) |
 | `test-run-id` | yes | - | Unique test run identifier (e.g., `Squirt-regression`) |
-| `languages` | yes | - | Test languages, space-separated full locale names (e.g., `en_US.utf8 de_AT.utf8`) |
+| `languages` | yes | - | Test languages input retained for compatibility; registration currently uses `en_US.utf8` |
 | `winccoa-version` | yes | - | WinCC OA version (e.g., `3.21`) |
 | `upload-artifacts` | no | `true` | Upload failed tests and results as artifacts |
 | `publish-junit-report` | no | `true` | Publish jUnit report as GitHub check |
@@ -32,13 +32,12 @@ No outputs planned now.
   with:
     winccoa-test-path: tests/WinCC_OA_Test
     test-run-id: Squirt-regression
-    languages: en_US.utf8 de_AT.utf8
+    languages: en_US.utf8
     winccoa-version: 3.21
 
 Notes:
 - See the action `skills.md` for developer guidance: [actions/winccoa-ctrl-test-framework-runner/skills.md](actions/winccoa-ctrl-test-framework-runner/skills.md)
 - Setup uses [actions/winccoa-register-project](actions/winccoa-register-project/action.yml) to create and register the test project; the action accepts `sub-projects` as a newline-separated input.
- - Setup uses [actions/winccoa-register-project](actions/winccoa-register-project/action.yml) to create and register the test project; the action accepts `sub-projects` as a newline-separated input.
 
 Optional inputs:
 - `parse-results` (default `false`) — set to `true` to parse jUnit results and populate action outputs. Leave `false` for very large test suites to avoid long parse times.
