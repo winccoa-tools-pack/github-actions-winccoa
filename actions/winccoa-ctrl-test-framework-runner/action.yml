@@ -140,7 +140,66 @@ runs:
         WINCCOA_VERSION: ${{ inputs.winccoa-version }}
       run: |
         set -euo pipefail
-        
+        # Ensure a virtual X display is available for GUI-capable managers
+        : "${DISPLAY:=:99}"
+        export DISPLAY
+
+        if ! command -v Xvfb >/dev/null 2>&1; then
+          if command -v sudo >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y xvfb xauth x11-utils >/dev/null || true
+          else
+            apt-get update && apt-get install -y xvfb xauth x11-utils >/dev/null || true
+          fi
+        fi
+
+        if ! xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+          echo "Starting Xvfb on $DISPLAY"
+          Xvfb "$DISPLAY" -screen 0 1280x1024x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &
+          for i in 1 2 3 4 5; do
+            if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          if ! xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+            echo "::warning::Xvfb did not become ready on $DISPLAY"
+            cat /tmp/xvfb.log || true
+          fi
+        fi
+
+        # Ensure XAUTHORITY exists and is writable
+        : "${XAUTHORITY:=/tmp/.Xauthority}"
+        touch "$XAUTHORITY" || true
+        chmod 600 "$XAUTHORITY" || true
+
+        # Detect available Qt platform plugins and select a platform
+        if [ -z "${QT_QPA_PLATFORM:-}" ]; then
+          QXCB_PATH=$(find /usr /opt -type f -name 'libqxcb.so' 2>/dev/null | head -n1 || true)
+          QOFF_PATH=$(find /usr /opt -type f -name 'libqoffscreen.so' 2>/dev/null | head -n1 || true)
+
+          if [ -n "$QXCB_PATH" ] && xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+            export QT_QPA_PLATFORM=xcb
+            echo "Using QT_QPA_PLATFORM=xcb (found $QXCB_PATH)"
+          elif [ -n "$QOFF_PATH" ]; then
+            export QT_QPA_PLATFORM=offscreen
+            echo "Using QT_QPA_PLATFORM=offscreen (found $QOFF_PATH)"
+          else
+            # Default to xcb and rely on Xvfb; fallback warnings will appear if plugin missing
+            export QT_QPA_PLATFORM=xcb
+            echo "Warning: Qt platform plugins not found, defaulting to xcb"
+          fi
+        else
+          echo "QT_QPA_PLATFORM already set to ${QT_QPA_PLATFORM}"
+        fi
+
+        # Ensure XDG_RUNTIME_DIR is writable
+        if [ -z "${XDG_RUNTIME_DIR:-}" ] || [ ! -d "${XDG_RUNTIME_DIR}" ] || [ ! -w "${XDG_RUNTIME_DIR}" ]; then
+          export XDG_RUNTIME_DIR="/tmp/runtime-${USER:-oatestusr}-$RANDOM"
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          echo "Set XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"
+        fi
+
         WINCCOA_BIN="/opt/WinCC_OA/${WINCCOA_VERSION}/bin"
         WINCC_OA_TEST_PATH="${GITHUB_WORKSPACE}/${{ inputs.winccoa-test-path }}"
         TF_CUSTOMIZED_PATH="${WINCC_OA_TEST_PATH}/Projects/TfCustomizedSquirt"
