@@ -104,7 +104,7 @@ jobs:
       packages: read
       pull-requests: write
     env:
-      WINCCOA_IMAGE: ghcr.io/winccoa-tools-pack/winccoa:v3.21.3-debian12-all
+      WINCCOA_IMAGE: ghcr.io/winccoa-tools-pack/winccoa-images:3.21.6-debian12-amd64-all
     steps:
       - uses: actions/checkout@v4
 

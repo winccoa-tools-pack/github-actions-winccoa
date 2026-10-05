@@ -6,7 +6,7 @@ Build WinCC OA help documentation inside a Docker container and extract Doxygen 
 
 - `path`: Project root path relative to repository root. Default `.`
 - `winccoa-version`: WinCC OA version, for example `3.21`
-- `docker-image`: WinCC OA container image, for example `ghcr.io/winccoa-tools-pack/winccoa:v3.21.3-debian12-all`
+- `docker-image`: WinCC OA container image, for example `ghcr.io/winccoa-tools-pack/winccoa-images:3.21.6-debian12-amd64-all`
 - `company-name`: Optional company/org string for `buildHelp.ctl`
 - `warning-output-file`: Workspace-relative warning file path. Default `.artifacts/doxygen-warnings.txt`
 - `annotate-warnings`: Emit warnings as GitHub annotations. Default `true`
@@ -27,7 +27,7 @@ Build WinCC OA help documentation inside a Docker container and extract Doxygen 
   with:
     path: src/Squirt
     winccoa-version: 3.21
-    docker-image: ghcr.io/winccoa-tools-pack/winccoa:v3.21.3-debian12-all
+    docker-image: ghcr.io/winccoa-tools-pack/winccoa-images:3.21.6-debian12-amd64-all
     warning-output-file: .artifacts/doxygen-warnings.txt
     max-warning-count: 0
 ```

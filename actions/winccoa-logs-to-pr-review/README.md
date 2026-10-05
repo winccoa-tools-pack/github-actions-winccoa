@@ -188,7 +188,7 @@ jobs:
         with:
           path: src/Squirt
           winccoa-version: '3.21'
-          docker-image: ghcr.io/winccoa-tools-pack/winccoa:v3.21.3-debian12-all
+          docker-image: ghcr.io/winccoa-tools-pack/winccoa-images:3.21.6-debian12-amd64-all
           fail-on-error: 'true'
 
       - id: report

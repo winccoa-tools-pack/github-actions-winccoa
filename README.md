@@ -70,7 +70,7 @@ warnings for PR reporting or quality gates.
   with:
     path: src/Squirt
     winccoa-version: '3.21'
-    docker-image: ghcr.io/winccoa-tools-pack/winccoa:v3.21.3-debian12-all
+    docker-image: ghcr.io/winccoa-tools-pack/winccoa-images:3.21.6-debian12-amd64-all
     max-warning-count: '0'
 ```
 
@@ -110,7 +110,7 @@ Runs WinCC OA syntax validation (npm package) and writes a classic log for PR re
   with:
     path: src/Squirt
     winccoa-version: '3.21'
-    docker-image: ghcr.io/winccoa-tools-pack/winccoa:v3.21.3-debian12-all
+    docker-image: ghcr.io/winccoa-tools-pack/winccoa-images:3.21.6-debian12-amd64-all
 ```
 
 ### winccoa-style-check
@@ -126,7 +126,7 @@ and writes a classic log for PR reporting.
     path: src/Squirt
     source-path: src/Squirt/scripts
     winccoa-version: '3.21'
-    docker-image: ghcr.io/winccoa-tools-pack/winccoa:v3.21.3-debian12-all
+    docker-image: ghcr.io/winccoa-tools-pack/winccoa-images:3.21.6-debian12-amd64-all
     package-version: '0.1.1'
 ```
 
