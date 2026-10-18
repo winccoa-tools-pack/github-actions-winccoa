@@ -9,6 +9,7 @@
   },
   "scripts": {
     "list:actions": "node ./scripts/list-actions.mjs",
-    "validate": "node ./scripts/validate-actions.mjs"
+    "validate": "node ./scripts/validate-actions.mjs",
+    "test:style-check": "bash ./actions/winccoa-style-check/scripts/test.sh"
   }
 }

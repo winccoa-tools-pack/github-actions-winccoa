@@ -36,6 +36,15 @@ if [ -n "${SOURCE_PATH_RAW}" ]; then
 fi
 
 PKG_NAME="@winccoa-tools-pack/npm-winccoa-ctrl-code-style"
+LOG_REL="${LOG_PATH:-.artifacts/style-check.log}"
+if [[ "${LOG_REL}" = /* ]]; then
+  LOG_ABS="${LOG_REL}"
+else
+  LOG_ABS="${GITHUB_WORKSPACE:-$(pwd)}/${LOG_REL}"
+fi
+mkdir -p "$(dirname "${LOG_ABS}")"
+touch "${LOG_ABS}"
+
 if [ -n "${REPORT_FORMAT:-}" ] || [ -n "${REPORT_PATH:-}" ]; then
   case "${REPORT_FORMAT:-}" in
     sarif|gitlab) ;;
@@ -44,6 +53,7 @@ if [ -n "${REPORT_FORMAT:-}" ] || [ -n "${REPORT_PATH:-}" ]; then
   case "${REPORT_PATH:-}" in
     ''|/*|..|../*|*/../*|*/..) echo "::error::report-path must stay inside the checkout"; exit 2 ;;
   esac
+  mkdir -p "$(dirname "${GITHUB_WORKSPACE}/${REPORT_PATH#./}")"
   rm -f -- "${GITHUB_WORKSPACE}/${REPORT_PATH#./}"
 fi
 export PKG_SPEC="${PKG_NAME}@${PACKAGE_VERSION}"
@@ -125,13 +135,6 @@ echo "--- Style check output ---"
 printf '%s\n' "${OUTPUT}"
 echo "--- end output ---"
 
-LOG_REL="${LOG_PATH:-.artifacts/style-check.log}"
-if [[ "${LOG_REL}" = /* ]]; then
-  LOG_ABS="${LOG_REL}"
-else
-  LOG_ABS="${GITHUB_WORKSPACE:-$(pwd)}/${LOG_REL}"
-fi
-mkdir -p "$(dirname "${LOG_ABS}")"
 printf '%s\n' "${OUTPUT}" > "${LOG_ABS}"
 echo "Wrote style log: ${LOG_ABS}"
 

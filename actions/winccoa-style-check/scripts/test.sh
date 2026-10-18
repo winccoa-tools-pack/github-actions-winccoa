@@ -70,6 +70,10 @@ fi
 
 docker() {
   printf '%s\n' "$@" > "${CAPTURE}"
+  test -d "${GITHUB_WORKSPACE}/.artifacts" || return 91
+  test -f "${GITHUB_WORKSPACE}/.artifacts/style.log" || return 92
+  test -d "${GITHUB_WORKSPACE}/reports/nested" || return 93
+  printf '[]\n' > "${GITHUB_WORKSPACE}/reports/nested/style.json"
   printf '[]\n' > "${GITHUB_WORKSPACE}/style.json"
   printf '%s\n' '--- original' '+++ formatted' '@@ -1 +1 @@' '-old' '+new'
 }
@@ -77,8 +81,8 @@ docker() {
   PROJECT_PATH=src SOURCE_PATH=src/scripts COMMAND=check PACKAGE_VERSION=next
   DOCKER_IMAGE=test-image BLACKLIST=$'src/scripts/projectView.ctl\ngenerated folder'
   BLACKLIST_FILE=config/blacklist.txt SHOW_DIFF=false
-  REPORT_FORMAT=gitlab REPORT_PATH=style.json
-  LOG_PATH=style.log GITHUB_OUTPUT="${temporary}/outputs"
+  REPORT_FORMAT=gitlab REPORT_PATH=reports/nested/style.json
+  LOG_PATH=.artifacts/style.log GITHUB_OUTPUT="${temporary}/outputs"
   source "${SCRIPT_DIR}/run.sh"
 )
 assert_arg GITHUB_WORKSPACE=/workspace
@@ -87,10 +91,10 @@ assert_arg 'generated folder'
 assert_arg BLACKLIST_FILE=config/blacklist.txt
 assert_arg SHOW_DIFF=false
 assert_arg REPORT_FORMAT=gitlab
-assert_arg REPORT_PATH=style.json
-grep -Fx -- '+++ formatted' "${workspace}/style.log" >/dev/null
+assert_arg REPORT_PATH=reports/nested/style.json
+grep -Fx -- '+++ formatted' "${workspace}/.artifacts/style.log" >/dev/null
 grep -Fx 'exit-code=0' "${temporary}/outputs" >/dev/null
-grep -Fx "report-path=${workspace}/style.json" "${temporary}/outputs" >/dev/null
+grep -Fx "report-path=${workspace}/reports/nested/style.json" "${temporary}/outputs" >/dev/null
 
 docker() { printf '%s\n' 'formatter execution failed'; return 2; }
 (

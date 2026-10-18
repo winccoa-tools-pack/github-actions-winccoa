@@ -122,8 +122,13 @@ Both paths are resolved against the checkout, not the npm installation directory
 The action passes the checkout as `--report-root`; Docker writes the report into
 the mounted checkout. `report-path` output points to the surviving host file,
 even if formatting violations caused the operation to fail. It is empty when
-execution failed without producing a report. Parent directories are created by
-the package. The report destination is an owned output artifact, not a source
+execution failed without producing a report. The action creates log/report
+parent directories and the log file as the runner user before starting Docker.
+This prevents root-run SARIF generation from creating a shared artifact directory
+that blocks later host-side log writes. Persistent runners with directories left
+root-owned by an earlier run require administrator cleanup before retrying;
+the action does not recursively change checkout ownership or permissions.
+The report destination is an owned output artifact, not a source
 file; stale content is removed before execution.
 
 Publish after failed checks using `always()` but keep the final failure gate.
