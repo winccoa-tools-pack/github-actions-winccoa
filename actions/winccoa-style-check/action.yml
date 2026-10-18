@@ -24,6 +24,38 @@ inputs:
     required: false
     default: "check"
 
+  blacklist:
+    description: >-
+      Newline-separated repository-relative file/directory paths to exclude.
+      Blank lines and lines starting with # are ignored. Requires a package
+      release with blacklist support (not available in 0.1.2).
+    required: false
+    default: ""
+
+  blacklist-file:
+    description: >-
+      Repository-relative UTF-8 blacklist file. Entries resolve relative to
+      that file. Requires a package release with blacklist support.
+    required: false
+    default: ""
+
+  show-diff:
+    description: >-
+      Include original/formatted diffs in the captured style log. Requires a
+      package release with diff support; false passes --no-diff to the CLI.
+    required: false
+    default: "true"
+
+  report-format:
+    description: "Optional sarif or gitlab report (requires report-path and a supporting npm release)"
+    required: false
+    default: ""
+
+  report-path:
+    description: "Repository-relative machine-readable report artifact path"
+    required: false
+    default: ""
+
   fail-on-error:
     description: "Fail the job when the style operation fails"
     required: false
@@ -64,9 +96,9 @@ inputs:
   package-version:
     description: >-
       Version or dist-tag of @winccoa-tools-pack/npm-winccoa-ctrl-code-style
-      (for example 0.1.1 or latest). Do not use git refs such as main.
+      (for example 0.2.1 or latest). Do not use git refs such as main.
     required: false
-    default: "0.1.1"
+    default: "0.2.1"
 
   log-path:
     description: >-
@@ -81,6 +113,9 @@ inputs:
     default: "22"
 
 outputs:
+  report-path:
+    description: "Absolute host path to the generated report; empty when no report was produced"
+    value: ${{ steps.run.outputs.report-path }}
   exit-code:
     description: "Process exit code from the style CLI"
     value: ${{ steps.run.outputs.exit-code }}
@@ -98,6 +133,11 @@ runs:
         ACTION_PATH: ${{ github.action_path }}
         PROJECT_PATH: ${{ inputs.path }}
         SOURCE_PATH: ${{ inputs.source-path }}
+        BLACKLIST: ${{ inputs.blacklist }}
+        BLACKLIST_FILE: ${{ inputs.blacklist-file }}
+        SHOW_DIFF: ${{ inputs.show-diff }}
+        REPORT_FORMAT: ${{ inputs.report-format }}
+        REPORT_PATH: ${{ inputs.report-path }}
         COMMAND: ${{ inputs.command }}
         FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
         OA_VERSION: ${{ inputs.winccoa-version }}

@@ -36,6 +36,16 @@ if [ -n "${SOURCE_PATH_RAW}" ]; then
 fi
 
 PKG_NAME="@winccoa-tools-pack/npm-winccoa-ctrl-code-style"
+if [ -n "${REPORT_FORMAT:-}" ] || [ -n "${REPORT_PATH:-}" ]; then
+  case "${REPORT_FORMAT:-}" in
+    sarif|gitlab) ;;
+    *) echo "::error::report-format must be sarif or gitlab"; exit 2 ;;
+  esac
+  case "${REPORT_PATH:-}" in
+    ''|/*|..|../*|*/../*|*/..) echo "::error::report-path must stay inside the checkout"; exit 2 ;;
+  esac
+  rm -f -- "${GITHUB_WORKSPACE}/${REPORT_PATH#./}"
+fi
 export PKG_SPEC="${PKG_NAME}@${PACKAGE_VERSION}"
 
 HOST_PROJ_PATH="${GITHUB_WORKSPACE}/${PROJECT_PATH_NORM}"
@@ -81,6 +91,12 @@ if [ -n "${DOCKER_IMAGE:-}" ]; then
     -e PKG_SPEC="${PKG_SPEC}" \
     -e REGISTER_PROJECT="${REGISTER_PROJECT:-true}" \
     -e LANGUAGES="${LANGUAGES:-en_US.utf8}" \
+    -e GITHUB_WORKSPACE=/workspace \
+    -e BLACKLIST="${BLACKLIST:-}" \
+    -e BLACKLIST_FILE="${BLACKLIST_FILE:-}" \
+    -e SHOW_DIFF="${SHOW_DIFF:-true}" \
+    -e REPORT_FORMAT="${REPORT_FORMAT:-}" \
+    -e REPORT_PATH="${REPORT_PATH:-}" \
     -e PROJECT_PATH_IN_CONTAINER="${CONTAINER_PROJ_PATH}" \
     -e SOURCE_PATH_IN_CONTAINER="${CONTAINER_SOURCE_PATH}" \
     "${DOCKER_IMAGE}" \
@@ -123,6 +139,11 @@ if [ -n "${GITHUB_OUTPUT:-}" ]; then
   {
     echo "exit-code=${EXIT_CODE}"
     echo "log-path=${LOG_ABS}"
+    REPORT_ABS=""
+    if [ -n "${REPORT_PATH:-}" ] && [ -f "${GITHUB_WORKSPACE}/${REPORT_PATH#./}" ]; then
+      REPORT_ABS="${GITHUB_WORKSPACE}/${REPORT_PATH#./}"
+    fi
+    echo "report-path=${REPORT_ABS}"
   } >> "${GITHUB_OUTPUT}"
 fi
 

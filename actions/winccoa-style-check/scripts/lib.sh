@@ -44,6 +44,47 @@ ensure_node() {
 run_style_cli() {
   local project_path="$1"
   local source_path="${2:-}"
+  local workspace="${GITHUB_WORKSPACE:-${PWD}}"
+  local blacklist_args=()
+  if [ -n "${REPORT_FORMAT:-}" ] || [ -n "${REPORT_PATH:-}" ]; then
+    case "${REPORT_FORMAT:-}" in
+      sarif|gitlab) ;;
+      *) echo "::error::report-format must be sarif or gitlab"; return 2 ;;
+    esac
+    if [ -z "${REPORT_PATH:-}" ]; then
+      echo "::error::report-path is required with report-format"
+      return 2
+    fi
+    blacklist_args+=(--report-format "${REPORT_FORMAT}" --report-file "${workspace}/${REPORT_PATH#./}" --report-root "${workspace}")
+  fi
+  local excluded
+  while IFS= read -r excluded || [ -n "${excluded}" ]; do
+    excluded="${excluded%$'\r'}"
+    excluded="${excluded#"${excluded%%[![:space:]]*}"}"
+    excluded="${excluded%"${excluded##*[![:space:]]}"}"
+    if [ -z "${excluded}" ] || [[ "${excluded}" == \#* ]]; then
+      continue
+    fi
+    blacklist_args+=(--blacklist "${workspace}/${excluded#./}")
+  done <<< "${BLACKLIST:-}"
+
+  if [ -n "${BLACKLIST_FILE:-}" ]; then
+    local blacklist_file="${workspace}/${BLACKLIST_FILE#./}"
+    if [ ! -f "${blacklist_file}" ]; then
+      echo "::error::Blacklist file does not exist: ${blacklist_file}"
+      return 2
+    fi
+    blacklist_args+=(--blacklist-file "${blacklist_file}")
+  fi
+
+  case "${SHOW_DIFF:-true}" in
+    true) ;;
+    false) blacklist_args+=(--no-diff) ;;
+    *)
+      echo "::error::show-diff must be true or false"
+      return 2
+      ;;
+  esac
 
   # CTL getFileNamesRecursive needs full absolute paths (not CWD-relative).
   if command -v realpath >/dev/null 2>&1; then
@@ -109,6 +150,8 @@ run_style_cli() {
   if [ "${REGISTER_PROJECT:-true}" != "true" ]; then
     args+=(--no-register)
   fi
+
+  args+=("${blacklist_args[@]}")
 
   echo "Running: node ${entry} ${args[*]}"
   node "${entry}" "${args[@]}"
