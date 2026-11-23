@@ -8,7 +8,7 @@ inputs:
   path:
     description: >-
       Path to the runnable WinCC OA worker / source project root relative to the
-      repository root (e.g. src/Squirt)
+      repository root (e.g. src/Splash)
     required: false
     default: "."
 

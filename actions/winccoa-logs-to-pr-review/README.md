@@ -186,7 +186,7 @@ jobs:
         continue-on-error: true
         uses: winccoa-tools-pack/github-actions-winccoa/actions/winccoa-syntax-check@main
         with:
-          path: src/Squirt
+          path: src/Splash
           winccoa-version: '3.21'
           docker-image: ghcr.io/winccoa-tools-pack/winccoa-images:3.21.6-debian12-amd64-all
           fail-on-error: 'true'

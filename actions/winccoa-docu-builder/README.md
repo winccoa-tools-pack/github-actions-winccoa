@@ -119,7 +119,7 @@ jobs:
       - id: docs
         uses: winccoa-tools-pack/github-actions-winccoa/actions/winccoa-docu-builder@main
         with:
-          path: src/Squirt
+          path: src/Splash
           winccoa-version: '3.21'
           docker-image: ${{ env.WINCCOA_IMAGE }}
           company-name: winccoa-tools-pack
@@ -150,7 +150,7 @@ After the fix release, switch back to a semver such as `0.2.1`.
   when paths are present in the warning text.
 - Absolute OA temp generator paths such as
   `.../Temp/WinCC_OA_docuGenerator/scripts/...` are rewritten to repository-
-  relative worker paths (for example `src/Squirt/scripts/...`) in the
+  relative worker paths (for example `src/Splash/scripts/...`) in the
   extracted warning file, staged `doxygen_warn_logfile.txt`, and annotations.
 - Warning extraction order: dedicated warning logfile, stderr log, stdout log,
   then process output fallback.

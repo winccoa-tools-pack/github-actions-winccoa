@@ -8,7 +8,7 @@ inputs:
     required: true
 
   test-run-id:
-    description: "Unique test run identifier (e.g., Squirt-regression)"
+    description: "Unique test run identifier (e.g., Splash-regression)"
     required: true
 
   languages:
@@ -88,19 +88,19 @@ runs:
         LANGS="en_US.utf8"
 
         npx --yes @winccoa-tools-pack/npm-winccoa-register-project@1.1.1 \
-          --project-path "${GITHUB_WORKSPACE}/${{ inputs.winccoa-test-path }}/Projects/TfCustomizedSquirt" \
+          --project-path "${GITHUB_WORKSPACE}/${{ inputs.winccoa-test-path }}/Projects/TfCustomizedSplash" \
           --langs "${LANGS}" \
           --wincc-oa-version "${{ inputs.winccoa-version }}" \
           --sub-project "TestFramework_${{ inputs.winccoa-version }}" \
           --sub-project "${GITHUB_WORKSPACE}/${{ inputs.winccoa-test-path }}/Projects/Global"
 
-    - name: Set additional config entries for TfCustomizedSquirt
+    - name: Set additional config entries for TfCustomizedSplash
       shell: bash
       id: set-test-path
       run: |
         set -euo pipefail
         WINCC_OA_TEST_PATH="${GITHUB_WORKSPACE}/${{ inputs.winccoa-test-path }}"
-        TF_CUSTOMIZED_PATH="${WINCC_OA_TEST_PATH}/Projects/TfCustomizedSquirt"
+        TF_CUSTOMIZED_PATH="${WINCC_OA_TEST_PATH}/Projects/TfCustomizedSplash"
         echo "Setting additional config entries for test framework..."
         echo "  Test project path: ${TF_CUSTOMIZED_PATH}"
         echo "  Test run ID: ${{ inputs.test-run-id }}"
@@ -126,7 +126,7 @@ runs:
       run: |
         set -euo pipefail
         WINCC_OA_TEST_PATH="${GITHUB_WORKSPACE}/${{ inputs.winccoa-test-path }}"
-        TF_CUSTOMIZED_PATH="${WINCC_OA_TEST_PATH}/Projects/TfCustomizedSquirt"
+        TF_CUSTOMIZED_PATH="${WINCC_OA_TEST_PATH}/Projects/TfCustomizedSplash"
         mkdir -p "${WINCC_OA_TEST_PATH}/Results"
         mkdir -p "${TF_CUSTOMIZED_PATH}/log"
         mkdir -p "${WINCC_OA_TEST_PATH}/Projects/Stored"
@@ -202,7 +202,7 @@ runs:
 
         WINCCOA_BIN="/opt/WinCC_OA/${WINCCOA_VERSION}/bin"
         WINCC_OA_TEST_PATH="${GITHUB_WORKSPACE}/${{ inputs.winccoa-test-path }}"
-        TF_CUSTOMIZED_PATH="${WINCC_OA_TEST_PATH}/Projects/TfCustomizedSquirt"
+        TF_CUSTOMIZED_PATH="${WINCC_OA_TEST_PATH}/Projects/TfCustomizedSplash"
         PVSS_LOG_FILE="${TF_CUSTOMIZED_PATH}/log/PVSS_II.log"
         
         echo "Starting WinCC OA test execution..."
@@ -242,7 +242,7 @@ runs:
 
         WINCCOA_BIN="/opt/WinCC_OA/${WINCCOA_VERSION}/bin"
         WINCC_OA_TEST_PATH="${GITHUB_WORKSPACE}/${{ inputs.winccoa-test-path }}"
-        TF_CUSTOMIZED_PATH="${WINCC_OA_TEST_PATH}/Projects/TfCustomizedSquirt"
+        TF_CUSTOMIZED_PATH="${WINCC_OA_TEST_PATH}/Projects/TfCustomizedSplash"
         
         echo "Converting test results to jUnit format..."
         
@@ -267,7 +267,7 @@ runs:
         set -euo pipefail
 
         WINCC_OA_TEST_PATH="${GITHUB_WORKSPACE}/${{ inputs.winccoa-test-path }}"
-        TF_CUSTOMIZED_PATH="${WINCC_OA_TEST_PATH}/Projects/TfCustomizedSquirt"
+        TF_CUSTOMIZED_PATH="${WINCC_OA_TEST_PATH}/Projects/TfCustomizedSplash"
         LOG_FILE="${PVSS_LOG_FILE:-${TF_CUSTOMIZED_PATH}/log/PVSS_II.log}"
 
         echo "Inspecting PVSS manager log: ${LOG_FILE}"

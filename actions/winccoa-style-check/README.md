@@ -59,12 +59,12 @@ For a release with feature support:
 
 ```yaml
 with:
-  path: src/Squirt
+  path: src/Splash
   winccoa-version: '3.21'
   package-version: '0.2.1'
   blacklist: |
     # Temporary exception while investigating Linux formatting
-    src/Squirt/scripts/gedi/projectView.ctl
+    src/Splash/scripts/gedi/projectView.ctl
     generated folder
   blacklist-file: .ctl-style-blacklist
   show-diff: 'true'
@@ -98,7 +98,7 @@ that release explicitly through `package-version`.
   continue-on-error: true
   uses: winccoa-tools-pack/github-actions-winccoa/actions/winccoa-style-check@main
   with:
-    path: src/Squirt
+    path: src/Splash
     winccoa-version: '3.21'
     docker-image: ${{ vars.WINCCOA_IMAGE }}
     package-version: ${{ vars.STYLE_PACKAGE_VERSION }}
@@ -184,8 +184,8 @@ jobs:
         continue-on-error: true
         uses: winccoa-tools-pack/github-actions-winccoa/actions/winccoa-style-check@main
         with:
-          path: src/Squirt
-          source-path: src/Squirt/scripts
+          path: src/Splash
+          source-path: src/Splash/scripts
           winccoa-version: '3.21'
           docker-image: ${{ env.WINCCOA_IMAGE }}
           command: check

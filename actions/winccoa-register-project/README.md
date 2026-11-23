@@ -18,7 +18,7 @@ reimplement config generation or `WCCILpmon` registration in shell.
 
 | Input | Required | Default | Description |
 | ----- | -------- | ------- | ----------- |
-| `project-path` | yes | - | Path to the main WinCC OA project directory (e.g., `src/Squirt`) |
+| `project-path` | yes | - | Path to the main WinCC OA project directory (e.g., `src/Splash`) |
 | `sub-projects` | no | empty | Optional newline-separated list of sub-project paths or IDs |
 | `languages` | yes | - | Space- or newline-separated locales (e.g., `en_US.utf8 de_AT.utf8`) |
 | `winccoa-version` | yes | - | WinCC OA version (e.g., `3.21`) |
@@ -41,7 +41,7 @@ reimplement config generation or `WCCILpmon` registration in shell.
 ```yaml
 - uses: winccoa-tools-pack/github-actions-winccoa/actions/winccoa-register-project@main
   with:
-    project-path: src/Squirt
+    project-path: src/Splash
     languages: |
       en_US.utf8
       de_AT.utf8

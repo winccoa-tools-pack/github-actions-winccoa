@@ -7,7 +7,7 @@ Executes WinCC OA tests using the WinCC OA TestFramework with automatic jUnit re
 | Input | Required | Default | Description |
 | ------- | ---------- | --------- | ------------- |
 | `winccoa-test-path` | yes | - | Path to the test sources based on WinCC OA TestFramework struct (e.g., `tests/WinCC_OA_Test`) |
-| `test-run-id` | yes | - | Unique test run identifier (e.g., `Squirt-regression`) |
+| `test-run-id` | yes | - | Unique test run identifier (e.g., `Splash-regression`) |
 | `languages` | yes | - | Test languages input retained for compatibility; registration currently uses `en_US.utf8` |
 | `winccoa-version` | yes | - | WinCC OA version (e.g., `3.21`) |
 | `upload-artifacts` | no | `true` | Upload failed tests and results as artifacts |
@@ -31,7 +31,7 @@ No outputs planned now.
 - uses: winccoa-tools-pack/github-actions-winccoa/actions/winccoa-run-tests@main
   with:
     winccoa-test-path: tests/WinCC_OA_Test
-    test-run-id: Squirt-regression
+    test-run-id: Splash-regression
     languages: en_US.utf8
     winccoa-version: 3.21
 

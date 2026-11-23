@@ -4,7 +4,7 @@ author: "winccoa-tools-pack"
 
 inputs:
   project-path:
-    description: "Path to the main WinCC OA project directory (e.g., src/Squirt)"
+    description: "Path to the main WinCC OA project directory (e.g., src/Splash)"
     required: true
 
   sub-projects:
