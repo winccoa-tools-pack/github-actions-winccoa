@@ -25,7 +25,7 @@ Build WinCC OA help documentation inside a Docker container and extract Doxygen 
   id: docs
   uses: winccoa-tools-pack/github-actions-winccoa/actions/winccoa-build-docs@main
   with:
-    path: src/Squirt
+    path: src/Splash
     winccoa-version: 3.21
     docker-image: ghcr.io/winccoa-tools-pack/winccoa-images:3.21.6-debian12-amd64-all
     warning-output-file: .artifacts/doxygen-warnings.txt
